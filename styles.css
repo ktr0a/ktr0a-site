@@ -1,12 +1,17 @@
 body {
-    font-family: Arial, sans-serif;
-    padding: 40px;
+    font-family: "Space Grotesk", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 400; 
+    font-style: normal;
+    background-color: #292929;
+    color: white;
 }
 
 h1 {
-    color: #333;
+    color: #e3e3e3;
+    font-weight: 700;
 }
 
 p {
-    color: #555;
+    color: #ababab;
 }
