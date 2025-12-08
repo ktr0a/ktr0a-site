@@ -43,6 +43,11 @@ const projectConfigs = {
     description:
       "Portfolio Website",
   },
+  "TeachFlow-DevFest-AI-Hackathon-2025-": {
+    title: "TeachFlow - DevFest 2025",
+    description:
+      "An AI-powered grading assistant that helps educators provide structured, consistent feedback on student essays. \nBuilt in ~7h at DevFest Linz - AI Hackathon 2025.",
+  },
 };
 
 
