@@ -44,9 +44,9 @@ const projectConfigs = {
       "Portfolio Website",
   },
   "TeachFlow-DevFest-AI-Hackathon-2025-": {
-    title: "TeachFlow - DevFest 2025",
+    title: "TeachFlow - GDG DevFest 2025",
     description:
-      "An AI-powered grading assistant that helps educators provide structured, consistent feedback on student essays. \nBuilt in ~7h at DevFest Linz - AI Hackathon 2025.",
+      "An AI-powered grading assistant that helps educators provide structured, consistent feedback on student essays. \nBuilt in ~7h at GDG DevFest Linz - AI Hackathon 2025.",
   },
 };
 
@@ -54,7 +54,7 @@ const projectConfigs = {
 // fetch from cache
 async function fetchGitHubReposWithCache() {
   const cached = localStorage.getItem(CACHE_KEY);
-  const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+  const cachedTime = localStorage.getItem(CACHE_TIME_KEY);S
 
   const now = Date.now();
 
