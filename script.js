@@ -37,38 +37,67 @@ const projectConfigs = {
     title: "Finance Tracker CLI",
     description:
       "A modular Python command-line finance tracker with save/load, analysis tools, and an expandable architecture for future GUI/automation.",
-  },
-  "ktr0a-site": {
-    title: "QLuo.dev",
-    description:
-      "Portfolio Website",
+    order: 1,
   },
   "TeachFlow-DevFest-AI-Hackathon-2025-": {
     title: "TeachFlow - GDG DevFest 2025",
     description:
       "An AI-powered grading assistant that helps educators provide structured, consistent feedback on student essays. \nBuilt in ~7h at GDG DevFest Linz - AI Hackathon 2025.",
+    order: 2,
+  },
+  "ktr0a-site": {
+    title: "QLuo.dev",
+    description:
+      "Portfolio Website",
+    order: 3,
   },
 };
 
 
 // fetch from cache
 async function fetchGitHubReposWithCache() {
-  const cached = localStorage.getItem(CACHE_KEY);
-  const cachedTime = localStorage.getItem(CACHE_TIME_KEY);S
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    const cachedTimeRaw = localStorage.getItem(CACHE_TIME_KEY);
+    const now = Date.now();
 
-  const now = Date.now();
+    // Serve from cache if still fresh
+    if (cached && cachedTimeRaw) {
+      const cachedTime = Number(cachedTimeRaw);
+      if (!Number.isNaN(cachedTime) && now - cachedTime < CACHE_TTL) {
+        return JSON.parse(cached);
+      }
+    }
 
-  if (cached && cachedTime && now - Number(cachedTime) < CACHE_TTL) {
-    return JSON.parse(cached);
+    // Fetch fresh data from GitHub
+    const res = await fetch(`https://api.github.com/users/${GITHUB_USER}/repos`);
+    if (!res.ok) {
+      throw new Error(`GitHub API error: ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    // Store in cache
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    localStorage.setItem(CACHE_TIME_KEY, String(now));
+
+    return data;
+  } catch (err) {
+    console.error("Failed to fetch GitHub repos:", err);
+
+    // Fallback: try to use stale cache if available
+    const fallback = localStorage.getItem(CACHE_KEY);
+    if (fallback) {
+      try {
+        return JSON.parse(fallback);
+      } catch (_) {
+        // ignore JSON error and fall through
+      }
+    }
+
+    // Final fallback
+    return [];
   }
-
-  const res = await fetch(`https://api.github.com/users/${GITHUB_USER}/repos`);
-  const data = await res.json();
-
-  localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-  localStorage.setItem(CACHE_TIME_KEY, now.toString());
-
-  return data;
 }
 
 
@@ -79,15 +108,33 @@ async function loadGitHubProjects() {
   try {
     const repos = await fetchGitHubReposWithCache();
 
-    // Sort by last update 
-    repos.sort(
-      (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
-    );
-
-    // Only include repos from projectConfigs
+    // Only include repos that are configured
     const filtered = repos.filter((repo) => projectConfigs[repo.name]);
 
+    // Sort by projectConfigs.order, fallback to updated_at
+    filtered.sort((a, b) => {
+      const cfgA = projectConfigs[a.name] || {};
+      const cfgB = projectConfigs[b.name] || {};
+
+      const orderA =
+        typeof cfgA.order === "number" ? cfgA.order : Number.POSITIVE_INFINITY;
+      const orderB =
+        typeof cfgB.order === "number" ? cfgB.order : Number.POSITIVE_INFINITY;
+
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      // If same order or missing, keep newest first as tie-breaker
+      return new Date(b.updated_at) - new Date(a.updated_at);
+    });
+
     container.innerHTML = "";
+
+    if (!filtered.length) {
+      container.innerHTML = "<p>No projects to display.</p>";
+      return;
+    }
 
     filtered.forEach((repo) => {
       const cfg = projectConfigs[repo.name];
@@ -101,7 +148,7 @@ async function loadGitHubProjects() {
         <p style="opacity:0.7; font-size:0.85rem; margin-top:0.5rem;">
           ${repo.language || "Unknown"}
         </p>
-        <a href="${repo.html_url}" target="_blank"
+        <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer"
            class="btn secondary"
            style="margin-top:0.8rem; display:inline-block;">
           View on GitHub
@@ -111,6 +158,7 @@ async function loadGitHubProjects() {
       container.appendChild(card);
     });
   } catch (err) {
+    console.error(err);
     container.innerHTML =
       "<p>Failed to load GitHub projects (rate limit or network error).</p>";
   }
