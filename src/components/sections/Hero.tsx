@@ -4,7 +4,7 @@ export function Hero() {
     const config = getContentConfig();
 
     return (
-        <section className="flex min-h-[50vh] flex-col justify-center px-6 pt-32 pb-16">
+        <section className="flex min-h-[50vh] flex-col justify-center px-6 pt-32 pb-4">
             <div className="mx-auto max-w-5xl w-full">
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
                     {config.general.site_description}

@@ -24,7 +24,7 @@ export default async function Home() {
       <Hero />
 
       {/* Projects Section */}
-      <section id="projects" className="py-20 px-6">
+      <section id="projects" className="pt-8 pb-20 px-6">
         <div className="mx-auto max-w-4xl">
           <div className="mb-12 flex items-baseline justify-between border-b border-navy-800 pb-4">
             <h2 className="text-3xl font-bold text-slate-100">Projects</h2>
