@@ -1,4 +1,4 @@
-const encoded1 = "&#111;&#117;&#108;&#103;&#110;&#97;&#105;&#113;"; 
+const encoded1 = "&#111;&#117;&#108;&#103;&#110;&#97;&#105;&#113;";
 const encoded2 = "&#101;&#116;&#97;&#118;&#105;&#114;&#112;&#46;";
 const encoded3 = "&#109;&#111;&#99;&#46;&#108;&#105;&#97;&#109;&#103;&#64;";
 
@@ -29,14 +29,14 @@ const email = combined.split("").reverse().join("");
 const link = document.getElementById("email-link");
 if (link) {
   link.href = "mailto:" + email;
-  link.textContent = email; 
+  link.textContent = email;
 }
 
 const projectConfigs = {
   "Finance-app": {
-    title: "Finance Tracker CLI",
+    title: "Finance App",
     description:
-      "A modular Python command-line finance tracker with save/load, analysis tools, and an expandable architecture for future GUI/automation.",
+      "A Python-based Personal Finance application for tracking and managing your money with rich features like editable transactions, filtering, summaries, backups and undo/redo history",
     order: 1,
   },
   "TeachFlow-DevFest-AI-Hackathon-2025-": {
