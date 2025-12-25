@@ -1,0 +1,45 @@
+[general]
+github_user = "ktr0a"
+site_title = "Qiang Luo – Portfolio"
+site_description = "Software Engineer - Content Creator"
+youtube_handle = "@RealApplino"
+youtube_channel_id = "UC8hnH4AKJvODl9SK6bJu3pw"
+
+# Whitelist: Only these projects will be displayed, in this order.
+[projects.include]
+items = [
+  "Finance-app",
+  "TeachFlow-DevFest-AI-Hackathon-2025-",
+  "ktr0a-site"
+]
+
+[projects.overrides."Finance-app"]
+title = "Finance App"
+short = "Modular personal finance system (UI-first, CLI optional)."
+long = """
+A Python-based Personal Finance application for tracking and managing your money.
+Key features include editable transactions, powerful filtering, summaries, backups, and undo/redo history.
+Designed for modularity and extensibility.
+"""
+technologies = ["Python", "Streamlit", "FastAPI"]
+featured = true
+
+[projects.overrides."TeachFlow-DevFest-AI-Hackathon-2025-"]
+title = "TeachFlow - GDG DevFest 2025"
+short = "AI-powered grading assistant for educators."
+long = """
+An AI-powered grading assistant that helps educators provide structured, consistent feedback on student essays.
+Built in ~7h at GDG DevFest Linz - AI Hackathon 2025.
+Winning project for 'Best Use of AI'.
+"""
+technologies = ["Python", "Streamlit", "FastAPI", "AI-LLM"]
+featured = true
+
+[projects.overrides."ktr0a-site"]
+title = "QLuo.dev"
+short = "Personal portfolio website."
+long = """
+My personal portfolio website, now revamped with Next.js and React.
+Features a configuration-driven content system and optimized data fetching.
+"""
+technologies = ["Next.js", "React", "Tailwind CSS"]
