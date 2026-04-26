@@ -2,95 +2,291 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Qiang Luo – Portfolio</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="style.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qiang Luo — ktr0a</title>
+  <meta name="description" content="CS student & builder. ETH Zurich CS, fall 2026. I build software tools and run a 160k YouTube channel." />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<!-- HEADER -->
-<header class="site-header">
-  <div class="logo">QLuo / ktr0a / Applino</div>
-  <nav class="nav">
-    <a href="#projects" class="nav-link">Projects</a>
-    <a href="#youtube" class="nav-link">YouTube</a>
+  <!-- Custom cursor -->
+  <div id="cursor"></div>
+  <div id="cursor-blend" aria-hidden="true"></div>
+
+  <!-- SVG filter for cursor motion blur -->
+  <svg id="svg-filters" xmlns="http://www.w3.org/2000/svg"
+       style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <defs>
+      <filter id="cursor-motion-blur" x="-100%" y="-100%" width="300%" height="300%"
+              color-interpolation-filters="sRGB">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="0 0" id="cursor-gaussian" result="blur"/>
+        <feComposite in="blur" in2="SourceGraphic" operator="over"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- ═══════════════════════════════════ NAV ═══════════════════════════════════ -->
+  <nav id="nav">
+    <div class="nav-inner">
+      <a href="#hero" class="nav-wordmark">me</a>
+      <div class="nav-links">
+        <a href="#projects"     class="nav-link" data-section="projects">Projects</a>
+        <a href="#about"        class="nav-link" data-section="about">About</a>
+        <a href="#competitions" class="nav-link" data-section="competitions">Competitions</a>
+        <a href="#skills"       class="nav-link" data-section="skills">Skills</a>
+        <a href="#contact"      class="nav-link" data-section="contact">Contact</a>
+      </div>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark theme">☀</button>
+    </div>
   </nav>
-</header>
 
-<!-- HERO / HOME -->
-<section id="home" class="hero">
-  <div class="hero-content">
-    <p class="tagline">Software Engineer - Content Creator</p>
-    <h1>Hi, I’m Qiang.</h1>
+  <!-- ═══════════════════════════════════ HERO ═══════════════════════════════════ -->
+  <section id="hero">
+    <div id="hero-bg" aria-hidden="true">
+      <div id="hero-grid"></div>
+    </div>
+    <div id="hero-vignette" aria-hidden="true"></div>
 
-    <p class="description">
-      I build software and hardware projects and run a large Roblox YouTube channel.
-    </p>
+    <div class="hero-content">
+      <p class="hero-handle">ktr0a</p>
+      <h1 class="hero-name">Qiang Luo</h1>
+      <p class="hero-tagline">CS student &amp; builder. ETH Zurich CS, fall 2026.</p>
+      <p class="hero-oneliner">I build software tools and run a 160k YouTube channel.</p>
+      <div class="hero-ctas">
+        <a href="#projects" class="btn btn-primary">View Projects</a>
+        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">GitHub ↗</a>
+      </div>
+    </div>
 
-  </div>
-</section>
+    <div class="hero-scroll-hint" aria-hidden="true">
+      <span>scroll</span>
+      <div class="scroll-line"></div>
+    </div>
+  </section>
 
-<!-- PROJECTS -->
-<section id="projects" class="section">
-  <div class="section-content">
-    <h2>Projects</h2>
-    <div id="github-projects" class="project-grid"></div>
-  </div>
-</section>
+  <!-- ═════════════════════════════════ PROJECTS ═════════════════════════════════ -->
+  <section id="projects">
+    <div class="section-inner">
+      <h2 class="section-heading">Projects</h2>
 
+      <!-- Featured cards -->
+      <div class="featured-grid">
 
-<section id="youtube" class="section">
-  <div class="section-content">
-    <h2>YouTube</h2>
+        <!-- Finance Analyzer -->
+        <div class="project-card featured-card">
+          <div class="card-header">
+            <h3 class="card-title">Finance Analyzer</h3>
+            <a href="https://github.com/ktr0a/Finance-app" target="_blank" rel="noopener noreferrer" class="card-arrow" aria-label="View Finance Analyzer on GitHub">↗</a>
+          </div>
+          <p class="card-desc">Python tool that parses bank PDF exports, analyzes monthly spending, and renders an interactive local web dashboard with charts. Built CLI-first, then extended with a PDF parser and browser-based visualization.</p>
+          <div class="card-tags">
+            <span class="tag">Python</span>
+            <span class="tag">PDF Parsing</span>
+            <span class="tag">Data Visualization</span>
+            <span class="tag">CLI</span>
+          </div>
+        </div>
 
-    <!-- YouTube Channel Header Layout -->
-    <div class="youtube-header">
+        <!-- Applino -->
+        <div class="project-card featured-card" id="card-applino">
+          <div class="card-header">
+            <div class="applino-title-row">
+              <img src="realapplino-avatar.jpg" alt="Applino channel avatar" class="applino-avatar" />
+              <h3 class="card-title">Applino</h3>
+            </div>
+            <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="card-arrow" aria-label="Visit Applino on YouTube">↗</a>
+          </div>
+          <div class="yt-stats">
+            <span class="yt-stat-pill"><span id="yt-subs">160k+</span> subscribers</span>
+            <span class="yt-stat-pill"><span id="yt-videos">—</span> videos</span>
+          </div>
+          <p class="card-desc">160k+ subscriber YouTube channel. Led a creative team of 5, iterated on content strategy through YouTube Studio analytics, and assisted in the growth of two other channels (100k+, 10k+). Full production and growth operation.</p>
+          <div class="card-tags">
+            <span class="tag">YouTube</span>
+            <span class="tag">Content Strategy</span>
+            <span class="tag">Analytics</span>
+            <span class="tag">Team Lead</span>
+          </div>
+        </div>
 
-      <!-- Avatar -->
-      <img
-        src="realapplino-avatar.jpg"
-        alt="RealApplino channel avatar"
-        class="youtube-avatar-large"
-      />
+      </div>
 
-      <!-- Channel Info -->
-      <div class="youtube-header-info">
-        <p class="youtube-channel-name">Applino</p>
-        <p class="youtube-handle">@RealApplino</p>
-
-        <p class="youtube-meta">
-          <span id="yt-subs">—</span> subscribers ·
-          <span id="yt-videos">—</span> videos
-        </p>
-
-        <!-- LONG DESCRIPTION -->
-        <p class="youtube-long-desc">
-          I create high-energy Roblox content centered on engaging gameplay, 
-          fast-paced edits, and optimized thumbnail-driven CTR. 
-          Growth is driven by continuous iteration, adaptation and analytics-based 
-          experimentation through YouTube Studio, while I lead a small 
-          creative team behind the scenes.
-        </p>
-
-        <a
-          href="https://www.youtube.com/@RealApplino"
-          target="_blank"
-          class="btn secondary"
-          style="margin-top: 1rem; display: inline-block;"
-        >
-          Visit Channel
-        </a>
+      <!-- GitHub repos grid -->
+      <div class="repos-header">
+        <span class="repos-label">More on GitHub</span>
+        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="repos-link">github.com/ktr0a ↗</a>
+      </div>
+      <div id="github-grid" class="github-grid">
+        <p class="loading-text">Loading repos…</p>
       </div>
 
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- FOOTER -->
-<footer class="site-footer">
-  <p>Contact: <a id="email-link"></a></p>
-</footer>
+  <!-- ══════════════════════════════════ ABOUT ══════════════════════════════════ -->
+  <section id="about">
+    <div class="section-inner">
+      <h2 class="section-heading">About</h2>
 
-<script src="script.js"></script>
+      <div class="timeline">
+
+        <div class="timeline-item">
+          <div class="timeline-marker">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+          </div>
+          <div class="timeline-body">
+            <span class="timeline-org">ETH Zurich</span>
+            <span class="timeline-role">BSc Computer Science, starting fall 2026</span>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+          </div>
+          <div class="timeline-body">
+            <span class="timeline-org">Zivildienst</span>
+            <span class="timeline-role">Civilian service, Vienna, 2025–2026</span>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+          </div>
+          <div class="timeline-body">
+            <span class="timeline-org">Matura</span>
+            <span class="timeline-role">BG/BRG Schwechat, 2025</span>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">
+            <div class="timeline-dot"></div>
+          </div>
+          <div class="timeline-body">
+            <span class="timeline-org">FabLab Niederösterreich</span>
+            <span class="timeline-role">Maker Space Assistant, Feb–Oct 2024. 3D printing, laser cutting, microcontroller prototyping.</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════ COMPETITIONS ══════════════════════════════ -->
+  <section id="competitions">
+    <div class="section-inner">
+      <h2 class="section-heading">Competitions</h2>
+
+      <div class="comp-list">
+
+        <div class="comp-card">
+          <div class="comp-index">01</div>
+          <div class="comp-body">
+            <h3 class="comp-name">CCC 41st — Cloudflight Coding Contest</h3>
+            <p class="comp-result">School: 13/134 Vienna (top 10%). Classic: 45/184 Vienna, 279/1360 Europe-wide.</p>
+          </div>
+        </div>
+
+        <div class="comp-card">
+          <div class="comp-index">02</div>
+          <div class="comp-body">
+            <h3 class="comp-name">Bolyai Mathematics Team</h3>
+            <p class="comp-result">Top 3 in Lower Austria, 3 consecutive years (2023–2025). Top third nationally out of 55–65 teams Austria-wide.</p>
+          </div>
+        </div>
+
+        <div class="comp-card">
+          <div class="comp-index">03</div>
+          <div class="comp-body">
+            <h3 class="comp-name">Naboj Physics</h3>
+            <p class="comp-result">2nd Lower Austria, 7th Austria (2025)</p>
+          </div>
+        </div>
+
+        <div class="comp-card">
+          <div class="comp-index">04</div>
+          <div class="comp-body">
+            <h3 class="comp-name">Bonner Mathematikturnier</h3>
+            <p class="comp-result">4th of 19 teams, Vienna/Lower Austria region (2024)</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════ SKILLS ═══════════════════════════════════ -->
+  <section id="skills">
+    <div class="section-inner">
+      <h2 class="section-heading">Skills</h2>
+
+      <div class="skills-block">
+
+        <div class="skills-row">
+          <span class="skills-label">Proficient</span>
+          <div class="pills">
+            <span class="pill pill-accent">Python</span>
+            <span class="pill pill-accent">HTML</span>
+            <span class="pill pill-accent">CSS</span>
+          </div>
+        </div>
+
+        <div class="skills-row">
+          <span class="skills-label">Familiar</span>
+          <div class="pills">
+            <span class="pill">JavaScript</span>
+            <span class="pill">C++</span>
+          </div>
+        </div>
+
+        <div class="skills-divider"></div>
+
+        <div class="skills-row">
+          <span class="skills-label">Languages</span>
+          <div class="pills">
+            <span class="pill">German (native)</span>
+            <span class="pill">English (C1)</span>
+            <span class="pill">Chinese (heritage)*</span>
+          </div>
+        </div>
+
+        <p class="skills-footnote">* Native spoken, limited written</p>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════ CONTACT ═══════════════════════════════════ -->
+  <section id="contact">
+    <div class="section-inner contact-inner">
+      <h2 class="section-heading">Contact</h2>
+      <p class="contact-tagline">Open to internships and collaborations.</p>
+      <div class="contact-links">
+        <a id="email-link" class="contact-link" href="#">—</a>
+        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="contact-link">github.com/ktr0a ↗</a>
+        <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="contact-link">youtube.com/@RealApplino ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════ FOOTER ═══════════════════════════════════ -->
+  <footer id="footer">
+    <div class="footer-inner">
+      <span class="footer-wordmark">ktr0a</span>
+      <span class="footer-copy">qluo.dev</span>
+    </div>
+  </footer>
+
+  <!-- Scripts: Lenis → GSAP → ScrollTrigger → site JS  -->
+  <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="script.js"></script>
+
 </body>
 </html>
