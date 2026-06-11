@@ -15,6 +15,9 @@ const YT_CACHE_KEY       = "yt_stats_v2";
 const YT_CACHE_TIME_KEY  = "yt_stats_time_v2";
 const YT_CACHE_TTL       = 6 * 60 * 60 * 1000; // 6 hours
 
+const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const FINE_POINTER   = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
 
 /* ───────────────────────────────────────────────────────────────
    EMAIL OBFUSCATION  (logic preserved from original script.js)
@@ -53,7 +56,7 @@ document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
     const target = document.querySelector(anchor.getAttribute("href"));
     if (target) {
       e.preventDefault();
-      lenis.scrollTo(target, { offset: -72 }); // account for nav height
+      lenis.scrollTo(target, { offset: -64 }); // account for nav height
     }
   });
 });
@@ -69,27 +72,22 @@ lenis.on("scroll", ScrollTrigger.update);
 gsap.ticker.add((time) => { lenis.raf(time * 1000); });
 gsap.ticker.lagSmoothing(0);
 
-// Drive Lenis via rAF (separate from GSAP ticker to avoid double-call)
-// Using the standard pattern from Lenis docs for GSAP integration
-function lenisRaf(time) {
-  // lenis.raf is called via gsap.ticker above; this rAF keeps it running
-  requestAnimationFrame(lenisRaf);
-}
-requestAnimationFrame(lenisRaf);
-
 
 /* ───────────────────────────────────────────────────────────────
-   NAV — active section highlight on scroll
+   NAV — scrolled state + active section highlight
 ─────────────────────────────────────────────────────────────── */
-const NAV_SECTIONS  = ['projects', 'about', 'competitions', 'skills', 'contact'];
-const navWordmark   = document.querySelector('.nav-wordmark');
+const NAV_SECTIONS = ['projects', 'about', 'competitions', 'skills', 'contact'];
+const navEl        = document.getElementById('nav');
 
 const navLinkMap = {};
 document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
   navLinkMap[link.dataset.section] = link;
 });
 
-function updateActiveNav() {
+function updateNav() {
+  // Frosted border once past the top
+  if (navEl) navEl.classList.toggle('scrolled', window.scrollY > 24);
+
   // Trigger line: 35% down the viewport
   const scrollY = window.scrollY + window.innerHeight * 0.35;
   let current = null;
@@ -99,18 +97,13 @@ function updateActiveNav() {
     if (el && el.offsetTop <= scrollY) current = id;
   });
 
-  // Nav links
   Object.entries(navLinkMap).forEach(([id, link]) => {
     link.classList.toggle('active', id === current);
   });
-
-  // "me" wordmark — active when no section has been scrolled into yet (hero)
-  if (navWordmark) navWordmark.classList.toggle('active', current === null);
 }
 
-// Hook into Lenis scroll for smooth sync
-lenis.on('scroll', updateActiveNav);
-updateActiveNav();
+lenis.on('scroll', updateNav);
+updateNav();
 
 
 /* ───────────────────────────────────────────────────────────────
@@ -118,150 +111,116 @@ updateActiveNav();
 ─────────────────────────────────────────────────────────────── */
 const themeToggle = document.getElementById('theme-toggle');
 
-// Restore saved preference
 if (localStorage.getItem('theme') === 'light') {
   document.body.classList.add('light');
-  themeToggle.textContent = '☾';
 }
 
 themeToggle.addEventListener('click', () => {
   const isLight = document.body.classList.toggle('light');
-  themeToggle.textContent = isLight ? '☾' : '☀';
   localStorage.setItem('theme', isLight ? 'light' : 'dark');
 });
 
 
 /* ───────────────────────────────────────────────────────────────
-   CUSTOM CURSOR — dot with motion blur + blend-contrast ring
+   CUSTOM CURSOR — instant dot + trailing ring
 ─────────────────────────────────────────────────────────────── */
-const cursor        = document.getElementById("cursor");
-const cursorBlend   = document.getElementById("cursor-blend");
-const blurNode      = document.getElementById("cursor-gaussian");
-const DOT_RADIUS    = 5.5;  // half of 11px dot
-const BLEND_RADIUS  = 11;   // half of 22px blend overlay
+if (FINE_POINTER && !REDUCED_MOTION) {
+  const cursor     = document.getElementById("cursor");
+  const cursorRing = document.getElementById("cursor-ring");
 
-let mouseX = window.innerWidth  / 2;
-let mouseY = window.innerHeight / 2;
-let prevMouseX = mouseX;
-let prevMouseY = mouseY;
+  let mouseX = window.innerWidth / 2,  mouseY = window.innerHeight / 2;
+  let ringX  = mouseX,                 ringY  = mouseY;
 
-// Blur amount that decays each rAF frame
-let blurX = 0;
-let blurY = 0;
+  document.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    cursor.style.transform = `translate(${mouseX}px, ${mouseY}px)`;
+  });
 
-document.addEventListener("mousemove", (e) => {
-  prevMouseX = mouseX;
-  prevMouseY = mouseY;
-  mouseX = e.clientX;
-  mouseY = e.clientY;
+  function animateRing() {
+    ringX += (mouseX - ringX) * 0.16;
+    ringY += (mouseY - ringY) * 0.16;
+    cursorRing.style.transform = `translate(${ringX}px, ${ringY}px)`;
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
 
-  // Velocity → directional blur
-  const vx = mouseX - prevMouseX;
-  const vy = mouseY - prevMouseY;
-  blurX = Math.min(Math.abs(vx) * 0.45, 10);
-  blurY = Math.min(Math.abs(vy) * 0.45, 10);
+  // Fade on window leave/enter
+  document.addEventListener("mouseleave", () => {
+    cursor.style.opacity = "0";
+    cursorRing.style.opacity = "0";
+  });
+  document.addEventListener("mouseenter", () => {
+    cursor.style.opacity = "1";
+    cursorRing.style.opacity = "1";
+  });
 
-  cursor.style.transform      = `translate(${mouseX - DOT_RADIUS}px,  ${mouseY - DOT_RADIUS}px)`;
-  if (cursorBlend) cursorBlend.style.transform = `translate(${mouseX - BLEND_RADIUS}px, ${mouseY - BLEND_RADIUS}px)`;
-});
-
-// Fade on window leave/enter
-document.addEventListener("mouseleave", () => {
-  cursor.style.opacity = "0";
-  if (cursorBlend) cursorBlend.style.opacity = "0";
-});
-document.addEventListener("mouseenter", () => {
-  cursor.style.opacity = "1";
-  if (cursorBlend) cursorBlend.style.opacity = cursorBlend.classList.contains('active') ? "1" : "0";
-});
-
-// Each rAF: decay motion blur back to 0
-function animateCursor() {
-  blurX *= 0.78;
-  blurY *= 0.78;
-  const bx = blurX < 0.05 ? 0 : blurX;
-  const by = blurY < 0.05 ? 0 : blurY;
-  if (blurNode) blurNode.setAttribute("stdDeviation", `${bx.toFixed(2)} ${by.toFixed(2)}`);
-  requestAnimationFrame(animateCursor);
+  // Ring grows over interactive elements
+  const HOVER_SELECTOR = "a, button";
+  document.addEventListener("mouseover", (e) => {
+    if (e.target.closest(HOVER_SELECTOR)) document.body.classList.add("cursor-hover");
+  });
+  document.addEventListener("mouseout", (e) => {
+    if (e.target.closest(HOVER_SELECTOR)) document.body.classList.remove("cursor-hover");
+  });
 }
-animateCursor();
-
-// Blend-contrast: activate on buttons whose bg matches cursor color
-document.addEventListener("mouseover", (e) => {
-  if (e.target.closest(".btn-primary") && cursorBlend) {
-    cursorBlend.classList.add("active");
-  }
-});
-document.addEventListener("mouseout", (e) => {
-  if (e.target.closest(".btn-primary") && cursorBlend) {
-    cursorBlend.classList.remove("active");
-  }
-});
 
 
 /* ───────────────────────────────────────────────────────────────
-   HERO — reactive parallax on mousemove
+   SPOTLIGHT CARDS — glow follows the mouse
 ─────────────────────────────────────────────────────────────── */
-const heroBg      = document.getElementById("hero-bg");
-const heroSection = document.getElementById("hero");
-
-let heroTargetX  = 0, heroTargetY  = 0;
-let heroCurrentX = 0, heroCurrentY = 0;
-
-heroSection.addEventListener("mousemove", (e) => {
-  heroTargetX = (e.clientX / window.innerWidth  - 0.5) * 30;
-  heroTargetY = (e.clientY / window.innerHeight - 0.5) * 30;
-});
-
-heroSection.addEventListener("mouseleave", () => {
-  heroTargetX = 0;
-  heroTargetY = 0;
-});
-
-function animateHeroParallax() {
-  heroCurrentX += (heroTargetX - heroCurrentX) * 0.06;
-  heroCurrentY += (heroTargetY - heroCurrentY) * 0.06;
-  if (heroBg) {
-    heroBg.style.transform = `translate(${heroCurrentX}px, ${heroCurrentY}px) scale(1.1)`;
-  }
-  requestAnimationFrame(animateHeroParallax);
+if (FINE_POINTER) {
+  document.addEventListener("mousemove", (e) => {
+    document.querySelectorAll(".spotlight").forEach((card) => {
+      const rect = card.getBoundingClientRect();
+      if (
+        e.clientX < rect.left - 80 || e.clientX > rect.right + 80 ||
+        e.clientY < rect.top - 80  || e.clientY > rect.bottom + 80
+      ) return;
+      card.style.setProperty("--mx", `${e.clientX - rect.left}px`);
+      card.style.setProperty("--my", `${e.clientY - rect.top}px`);
+    });
+  });
 }
-animateHeroParallax();
 
-// Hero exit: content fades up, bg zooms out slightly (scrubbed)
-gsap.to(".hero-content", {
-  scrollTrigger: {
-    trigger: "#hero",
-    start: "top top",
-    end: "bottom top",
-    scrub: true,
-  },
-  opacity: 0,
-  y: -60,
-  ease: "none",
-});
 
-gsap.to("#hero-bg", {
-  scrollTrigger: {
-    trigger: "#hero",
-    start: "top top",
-    end: "bottom top",
-    scrub: true,
-  },
-  scale: 1.18, // adds to the base scale(1.1) set by parallax
-  ease: "none",
-});
+/* ───────────────────────────────────────────────────────────────
+   HERO — entrance + scroll-out
+─────────────────────────────────────────────────────────────── */
+if (!REDUCED_MOTION) {
+  gsap.from(".reveal-hero", {
+    opacity: 0,
+    y: 34,
+    duration: 0.9,
+    ease: "power3.out",
+    stagger: 0.1,
+    delay: 0.15,
+  });
 
-gsap.to(".hero-scroll-hint", {
-  scrollTrigger: {
-    trigger: "#hero",
-    start: "top top",
-    end: "25% top",
-    scrub: true,
-  },
-  opacity: 0,
-  ease: "none",
-});
+  // Hero exit: content fades up as you scroll (scrubbed)
+  gsap.to(".hero-content", {
+    scrollTrigger: {
+      trigger: "#hero",
+      start: "top top",
+      end: "bottom top",
+      scrub: true,
+    },
+    opacity: 0,
+    y: -70,
+    ease: "none",
+  });
+
+  gsap.to(".hero-scroll-hint", {
+    scrollTrigger: {
+      trigger: "#hero",
+      start: "top top",
+      end: "20% top",
+      scrub: true,
+    },
+    opacity: 0,
+    ease: "none",
+  });
+}
 
 
 /* ───────────────────────────────────────────────────────────────
@@ -274,100 +233,57 @@ const revealDefaults = {
   ease: "power2.out",
 };
 
-// Section headings — skip #projects heading (already visible on load)
-gsap.utils.toArray(".section-heading").forEach((el) => {
-  if (el.closest("#projects")) return; // handled below
-  gsap.from(el, {
+function scrollReveal(targets, triggerEl, extra = {}) {
+  if (REDUCED_MOTION) return;
+  gsap.from(targets, {
     ...revealDefaults,
     scrollTrigger: {
-      trigger: el,
+      trigger: triggerEl,
       start: "top 82%",
       toggleActions: "play none none none",
     },
+    ...extra,
   });
+}
+
+// Section headers
+gsap.utils.toArray(".section-header").forEach((el) => {
+  scrollReveal(el, el);
 });
 
-// Projects heading + featured cards: already in viewport on load,
-// so animate immediately without a ScrollTrigger
-gsap.from("#projects .section-heading", {
-  ...revealDefaults,
-  delay: 0.1,
-});
-
-gsap.from(".featured-card", {
-  ...revealDefaults,
-  delay: 0.2,
-  stagger: 0,
-});
+// Featured project cards
+scrollReveal(".featured-card", ".featured-grid", { stagger: 0.12 });
 
 // Timeline items — sequential
-gsap.from(".timeline-item", {
-  ...revealDefaults,
-  duration: 0.5,
-  scrollTrigger: {
-    trigger: ".timeline",
-    start: "top 80%",
-    toggleActions: "play none none none",
-  },
-  stagger: 0.15,
-});
+scrollReveal(".timeline-item", ".timeline", { duration: 0.5, stagger: 0.15 });
 
 // Competition cards
-gsap.from(".comp-card", {
-  ...revealDefaults,
-  duration: 0.5,
-  y: 20,
-  scrollTrigger: {
-    trigger: ".comp-list",
-    start: "top 80%",
-    toggleActions: "play none none none",
-  },
-  stagger: 0.1,
-});
+scrollReveal(".comp-card", ".comp-list", { duration: 0.5, y: 20, stagger: 0.1 });
 
 // Skills rows
-gsap.from(".skills-row", {
-  ...revealDefaults,
-  duration: 0.5,
-  y: 20,
-  scrollTrigger: {
-    trigger: ".skills-block",
-    start: "top 80%",
-    toggleActions: "play none none none",
-  },
-  stagger: 0.12,
-});
+scrollReveal(".skills-row", ".skills-block", { duration: 0.5, y: 20, stagger: 0.12 });
 
 // Contact section
-gsap.from(".contact-inner > *", {
-  opacity: 0,
-  y: 20,
-  duration: 0.6,
-  ease: "power2.out",
-  scrollTrigger: {
-    trigger: "#contact",
-    start: "top 80%",
-    toggleActions: "play none none none",
-  },
-  stagger: 0.1,
-});
+scrollReveal(".contact-inner > *", "#contact", { duration: 0.6, y: 20, stagger: 0.1 });
 
 // GitHub grid (called after repos render)
 function animateRepoCards() {
   const cards = document.querySelectorAll(".repo-card");
   if (!cards.length) return;
-  gsap.from(cards, {
-    opacity: 0,
-    y: 24,
-    duration: 0.45,
-    ease: "power2.out",
-    scrollTrigger: {
-      trigger: "#github-grid",
-      start: "top 85%",
-      toggleActions: "play none none none",
-    },
-    stagger: 0, // all cards enter as aligned rows, no staircase
-  });
+  if (!REDUCED_MOTION) {
+    gsap.from(cards, {
+      opacity: 0,
+      y: 24,
+      duration: 0.45,
+      ease: "power2.out",
+      scrollTrigger: {
+        trigger: "#github-grid",
+        start: "top 85%",
+        toggleActions: "play none none none",
+      },
+      stagger: 0, // all cards enter as aligned rows, no staircase
+    });
+  }
   ScrollTrigger.refresh();
 }
 

@@ -5,56 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Qiang Luo — ktr0a</title>
   <meta name="description" content="CS student & builder. ETH Zurich CS, fall 2026. I build software tools and run a 160k YouTube channel." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- Custom cursor -->
-  <div id="cursor"></div>
-  <div id="cursor-blend" aria-hidden="true"></div>
+  <!-- Film grain overlay -->
+  <div id="grain" aria-hidden="true"></div>
 
-  <!-- SVG filter for cursor motion blur -->
-  <svg id="svg-filters" xmlns="http://www.w3.org/2000/svg"
-       style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
-    <defs>
-      <filter id="cursor-motion-blur" x="-100%" y="-100%" width="300%" height="300%"
-              color-interpolation-filters="sRGB">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="0 0" id="cursor-gaussian" result="blur"/>
-        <feComposite in="blur" in2="SourceGraphic" operator="over"/>
-      </filter>
-    </defs>
-  </svg>
+  <!-- Custom cursor -->
+  <div id="cursor" aria-hidden="true"></div>
+  <div id="cursor-ring" aria-hidden="true"></div>
 
   <!-- ═══════════════════════════════════ NAV ═══════════════════════════════════ -->
   <nav id="nav">
     <div class="nav-inner">
-      <a href="#hero" class="nav-wordmark">me</a>
+      <a href="#hero" class="nav-wordmark">ktr0a<span class="nav-wordmark-dot">.</span></a>
       <div class="nav-links">
-        <a href="#projects"     class="nav-link" data-section="projects">Projects</a>
-        <a href="#about"        class="nav-link" data-section="about">About</a>
-        <a href="#competitions" class="nav-link" data-section="competitions">Competitions</a>
-        <a href="#skills"       class="nav-link" data-section="skills">Skills</a>
-        <a href="#contact"      class="nav-link" data-section="contact">Contact</a>
+        <a href="#projects"     class="nav-link" data-section="projects">projects</a>
+        <a href="#about"        class="nav-link" data-section="about">about</a>
+        <a href="#competitions" class="nav-link" data-section="competitions">competitions</a>
+        <a href="#skills"       class="nav-link" data-section="skills">skills</a>
+        <a href="#contact"      class="nav-link" data-section="contact">contact</a>
       </div>
-      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark theme">☀</button>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark theme">
+        <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
     </div>
   </nav>
 
   <!-- ═══════════════════════════════════ HERO ═══════════════════════════════════ -->
   <section id="hero">
-    <div id="hero-bg" aria-hidden="true">
-      <div id="hero-grid"></div>
+    <div class="hero-aurora" aria-hidden="true">
+      <div class="aurora-blob aurora-1"></div>
+      <div class="aurora-blob aurora-2"></div>
+      <div class="aurora-blob aurora-3"></div>
     </div>
-    <div id="hero-vignette" aria-hidden="true"></div>
+    <div class="hero-lines" aria-hidden="true"></div>
 
     <div class="hero-content">
-      <p class="hero-handle">ktr0a</p>
-      <h1 class="hero-name">Qiang Luo</h1>
-      <p class="hero-tagline">CS student &amp; builder. ETH Zurich CS, fall 2026.</p>
-      <p class="hero-oneliner">I build software tools and run a 160k YouTube channel.</p>
-      <div class="hero-ctas">
-        <a href="#projects" class="btn btn-primary">View Projects</a>
-        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">GitHub ↗</a>
+      <p class="hero-handle reveal-hero"><span class="handle-bracket">[</span> ktr0a <span class="handle-bracket">]</span></p>
+      <h1 class="hero-name reveal-hero">
+        <span class="hero-name-line">Qiang</span>
+        <span class="hero-name-line hero-name-accent">Luo</span>
+      </h1>
+      <p class="hero-tagline reveal-hero">CS student &amp; builder. <span class="tagline-em">ETH Zurich CS, fall 2026.</span></p>
+      <p class="hero-oneliner reveal-hero">I build software tools and run a 160k YouTube channel.</p>
+      <div class="hero-ctas reveal-hero">
+        <a href="#projects" class="btn btn-primary"><span>View Projects</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg></a>
+        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="btn btn-ghost"><span>GitHub</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg></a>
       </div>
     </div>
 
@@ -67,17 +71,23 @@
   <!-- ═════════════════════════════════ PROJECTS ═════════════════════════════════ -->
   <section id="projects">
     <div class="section-inner">
-      <h2 class="section-heading">Projects</h2>
+      <header class="section-header">
+        <span class="section-index">01</span>
+        <h2 class="section-heading">Projects</h2>
+        <div class="section-rule"></div>
+      </header>
 
       <!-- Featured cards -->
       <div class="featured-grid">
 
         <!-- Finance Analyzer -->
-        <div class="project-card featured-card">
-          <div class="card-header">
-            <h3 class="card-title">Finance Analyzer</h3>
-            <a href="https://github.com/ktr0a/Finance-app" target="_blank" rel="noopener noreferrer" class="card-arrow" aria-label="View Finance Analyzer on GitHub">↗</a>
+        <a href="https://github.com/ktr0a/Finance-app" target="_blank" rel="noopener noreferrer" class="project-card featured-card spotlight" aria-label="View Finance Analyzer on GitHub">
+          <div class="card-glow" aria-hidden="true"></div>
+          <div class="card-top">
+            <span class="card-kicker">Software</span>
+            <span class="card-arrow" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg></span>
           </div>
+          <h3 class="card-title">Finance Analyzer</h3>
           <p class="card-desc">Python tool that parses bank PDF exports, analyzes monthly spending, and renders an interactive local web dashboard with charts. Built CLI-first, then extended with a PDF parser and browser-based visualization.</p>
           <div class="card-tags">
             <span class="tag">Python</span>
@@ -85,20 +95,22 @@
             <span class="tag">Data Visualization</span>
             <span class="tag">CLI</span>
           </div>
-        </div>
+        </a>
 
         <!-- Applino -->
-        <div class="project-card featured-card" id="card-applino">
-          <div class="card-header">
-            <div class="applino-title-row">
-              <img src="realapplino-avatar.jpg" alt="Applino channel avatar" class="applino-avatar" />
-              <h3 class="card-title">Applino</h3>
-            </div>
-            <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="card-arrow" aria-label="Visit Applino on YouTube">↗</a>
+        <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="project-card featured-card spotlight" id="card-applino" aria-label="Visit Applino on YouTube">
+          <div class="card-glow" aria-hidden="true"></div>
+          <div class="card-top">
+            <span class="card-kicker">Creator</span>
+            <span class="card-arrow" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg></span>
+          </div>
+          <div class="applino-title-row">
+            <img src="realapplino-avatar.jpg" alt="Applino channel avatar" class="applino-avatar" />
+            <h3 class="card-title">Applino</h3>
           </div>
           <div class="yt-stats">
-            <span class="yt-stat-pill"><span id="yt-subs">160k+</span> subscribers</span>
-            <span class="yt-stat-pill"><span id="yt-videos">—</span> videos</span>
+            <span class="yt-stat-pill"><span class="yt-stat-num" id="yt-subs">160k+</span> subscribers</span>
+            <span class="yt-stat-pill"><span class="yt-stat-num" id="yt-videos">—</span> videos</span>
           </div>
           <p class="card-desc">160k+ subscriber YouTube channel. Led a creative team of 5, iterated on content strategy through YouTube Studio analytics, and assisted in the growth of two other channels (100k+, 10k+). Full production and growth operation.</p>
           <div class="card-tags">
@@ -107,14 +119,14 @@
             <span class="tag">Analytics</span>
             <span class="tag">Team Lead</span>
           </div>
-        </div>
+        </a>
 
       </div>
 
       <!-- GitHub repos grid -->
       <div class="repos-header">
         <span class="repos-label">More on GitHub</span>
-        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="repos-link">github.com/ktr0a ↗</a>
+        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="repos-link">github.com/ktr0a <span aria-hidden="true">↗</span></a>
       </div>
       <div id="github-grid" class="github-grid">
         <p class="loading-text">Loading repos…</p>
@@ -126,7 +138,11 @@
   <!-- ══════════════════════════════════ ABOUT ══════════════════════════════════ -->
   <section id="about">
     <div class="section-inner">
-      <h2 class="section-heading">About</h2>
+      <header class="section-header">
+        <span class="section-index">02</span>
+        <h2 class="section-heading">About</h2>
+        <div class="section-rule"></div>
+      </header>
 
       <div class="timeline">
 
@@ -180,36 +196,44 @@
   <!-- ══════════════════════════════ COMPETITIONS ══════════════════════════════ -->
   <section id="competitions">
     <div class="section-inner">
-      <h2 class="section-heading">Competitions</h2>
+      <header class="section-header">
+        <span class="section-index">03</span>
+        <h2 class="section-heading">Competitions</h2>
+        <div class="section-rule"></div>
+      </header>
 
       <div class="comp-list">
 
-        <div class="comp-card">
-          <div class="comp-index">01</div>
+        <div class="comp-card spotlight">
+          <div class="card-glow" aria-hidden="true"></div>
+          <div class="comp-index" aria-hidden="true">01</div>
           <div class="comp-body">
             <h3 class="comp-name">CCC 41st — Cloudflight Coding Contest</h3>
             <p class="comp-result">School: 13/134 Vienna (top 10%). Classic: 45/184 Vienna, 279/1360 Europe-wide.</p>
           </div>
         </div>
 
-        <div class="comp-card">
-          <div class="comp-index">02</div>
+        <div class="comp-card spotlight">
+          <div class="card-glow" aria-hidden="true"></div>
+          <div class="comp-index" aria-hidden="true">02</div>
           <div class="comp-body">
             <h3 class="comp-name">Bolyai Mathematics Team</h3>
             <p class="comp-result">Top 3 in Lower Austria, 3 consecutive years (2023–2025). Top third nationally out of 55–65 teams Austria-wide.</p>
           </div>
         </div>
 
-        <div class="comp-card">
-          <div class="comp-index">03</div>
+        <div class="comp-card spotlight">
+          <div class="card-glow" aria-hidden="true"></div>
+          <div class="comp-index" aria-hidden="true">03</div>
           <div class="comp-body">
             <h3 class="comp-name">Naboj Physics</h3>
             <p class="comp-result">2nd Lower Austria, 7th Austria (2025)</p>
           </div>
         </div>
 
-        <div class="comp-card">
-          <div class="comp-index">04</div>
+        <div class="comp-card spotlight">
+          <div class="card-glow" aria-hidden="true"></div>
+          <div class="comp-index" aria-hidden="true">04</div>
           <div class="comp-body">
             <h3 class="comp-name">Bonner Mathematikturnier</h3>
             <p class="comp-result">4th of 19 teams, Vienna/Lower Austria region (2024)</p>
@@ -223,7 +247,11 @@
   <!-- ═══════════════════════════════════ SKILLS ═══════════════════════════════════ -->
   <section id="skills">
     <div class="section-inner">
-      <h2 class="section-heading">Skills</h2>
+      <header class="section-header">
+        <span class="section-index">04</span>
+        <h2 class="section-heading">Skills</h2>
+        <div class="section-rule"></div>
+      </header>
 
       <div class="skills-block">
 
@@ -263,13 +291,14 @@
 
   <!-- ═══════════════════════════════════ CONTACT ═══════════════════════════════════ -->
   <section id="contact">
+    <div class="contact-aurora" aria-hidden="true"></div>
     <div class="section-inner contact-inner">
-      <h2 class="section-heading">Contact</h2>
-      <p class="contact-tagline">Open to internships and collaborations.</p>
+      <span class="contact-kicker">05 / Contact</span>
+      <h2 class="contact-heading">Open to internships<br />and collaborations.</h2>
+      <a id="email-link" class="contact-email" href="#">—</a>
       <div class="contact-links">
-        <a id="email-link" class="contact-link" href="#">—</a>
-        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="contact-link">github.com/ktr0a ↗</a>
-        <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="contact-link">youtube.com/@RealApplino ↗</a>
+        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="contact-link">github.com/ktr0a <span aria-hidden="true">↗</span></a>
+        <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="contact-link">youtube.com/@RealApplino <span aria-hidden="true">↗</span></a>
       </div>
     </div>
   </section>
@@ -277,7 +306,7 @@
   <!-- ═══════════════════════════════════ FOOTER ═══════════════════════════════════ -->
   <footer id="footer">
     <div class="footer-inner">
-      <span class="footer-wordmark">ktr0a</span>
+      <span class="footer-wordmark">ktr0a<span class="nav-wordmark-dot">.</span></span>
       <span class="footer-copy">qluo.dev</span>
     </div>
   </footer>
