@@ -15,8 +15,14 @@ const YT_CACHE_KEY       = "yt_stats_v2";
 const YT_CACHE_TIME_KEY  = "yt_stats_time_v2";
 const YT_CACHE_TTL       = 6 * 60 * 60 * 1000; // 6 hours
 
-const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const FINE_POINTER   = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+const FINE_POINTER = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+/* Animations are ON by default for everyone — the OS reduced-motion
+   setting is intentionally ignored. The nav zap button toggles them
+   and the choice is remembered across visits. */
+const ANIM_KEY = "animations";
+let animOn = localStorage.getItem(ANIM_KEY) !== "off";
+if (!animOn) document.body.classList.add("no-anim");
 
 
 /* ───────────────────────────────────────────────────────────────
@@ -26,13 +32,13 @@ const FINE_POINTER   = window.matchMedia("(hover: hover) and (pointer: fine)").m
    is never left covered.
 ─────────────────────────────────────────────────────────────── */
 const loaderEl = document.getElementById("loader");
-const HERO_DELAY = (loaderEl && !REDUCED_MOTION) ? 1.15 : 0.15;
+const HERO_DELAY = (loaderEl && animOn) ? 1.15 : 0.15;
 
 if (loaderEl) {
   const hideLoader = () => loaderEl.classList.add("done");
   setTimeout(hideLoader, 3500); // fail-safe
 
-  if (REDUCED_MOTION || typeof gsap === "undefined") {
+  if (!animOn || typeof gsap === "undefined") {
     hideLoader();
   } else {
     gsap.timeline({ onComplete: hideLoader })
@@ -146,6 +152,27 @@ themeToggle.addEventListener('click', () => {
 
 
 /* ───────────────────────────────────────────────────────────────
+   ANIMATION TOGGLE — live on/off for all motion
+─────────────────────────────────────────────────────────────── */
+const animToggle = document.getElementById('anim-toggle');
+animToggle.setAttribute('aria-pressed', String(animOn));
+
+animToggle.addEventListener('click', () => {
+  animOn = !animOn;
+  localStorage.setItem(ANIM_KEY, animOn ? 'on' : 'off');
+  document.body.classList.toggle('no-anim', !animOn);
+  animToggle.setAttribute('aria-pressed', String(animOn));
+
+  if (animOn) {
+    initScrollAnimations(); // re-arm scroll reveals (hoisted declaration)
+    ScrollTrigger.refresh();
+  } else {
+    disableAnimations();
+  }
+});
+
+
+/* ───────────────────────────────────────────────────────────────
    CUSTOM CURSOR — instant dot + trailing ring
    Runs whenever a fine pointer exists. The .has-custom-cursor
    class is what hides the native cursor, so it is only added
@@ -156,8 +183,6 @@ if (FINE_POINTER) {
 
   const cursor     = document.getElementById("cursor");
   const cursorRing = document.getElementById("cursor-ring");
-  // Reduced motion: ring snaps to the pointer instead of trailing
-  const RING_EASE  = REDUCED_MOTION ? 1 : 0.16;
 
   let mouseX = window.innerWidth / 2,  mouseY = window.innerHeight / 2;
   let ringX  = mouseX,                 ringY  = mouseY;
@@ -177,8 +202,10 @@ if (FINE_POINTER) {
   });
 
   function animateRing() {
-    ringX += (mouseX - ringX) * RING_EASE;
-    ringY += (mouseY - ringY) * RING_EASE;
+    // Animations off: ring snaps to the pointer instead of trailing
+    const ease = animOn ? 0.16 : 1;
+    ringX += (mouseX - ringX) * ease;
+    ringY += (mouseY - ringY) * ease;
     cursorRing.style.transform = `translate(${ringX}px, ${ringY}px)`;
     requestAnimationFrame(animateRing);
   }
@@ -225,9 +252,9 @@ if (FINE_POINTER) {
 
 
 /* ───────────────────────────────────────────────────────────────
-   HERO — entrance + scroll-out
+   HERO — entrance (plays once, on load only)
 ─────────────────────────────────────────────────────────────── */
-if (!REDUCED_MOTION) {
+if (animOn) {
   gsap.from(".reveal-hero", {
     opacity: 0,
     y: 34,
@@ -236,7 +263,41 @@ if (!REDUCED_MOTION) {
     stagger: 0.1,
     delay: HERO_DELAY, // starts as the loader curtain lifts
   });
+}
 
+
+/* ───────────────────────────────────────────────────────────────
+   SCROLL ANIMATIONS — GSAP ScrollTrigger
+   Wrapped in init/disable functions so the nav toggle can turn
+   them off and back on at runtime.
+─────────────────────────────────────────────────────────────── */
+const revealDefaults = {
+  opacity: 0,
+  y: 30,
+  duration: 0.7,
+  ease: "power2.out",
+};
+
+// Everything GSAP may have touched — reset targets for disableAnimations()
+const ANIM_TARGETS = [
+  ".reveal-hero", ".hero-content", ".hero-scroll-hint",
+  ".section-header", ".featured-card", ".timeline-item",
+  ".comp-card", ".skills-row", ".contact-inner > *", ".repo-card",
+];
+
+function scrollReveal(targets, triggerEl, extra = {}) {
+  gsap.from(targets, {
+    ...revealDefaults,
+    scrollTrigger: {
+      trigger: triggerEl,
+      start: "top 82%",
+      toggleActions: "play none none none",
+    },
+    ...extra,
+  });
+}
+
+function initScrollAnimations() {
   // Hero exit: content fades up as you scroll (scrubbed)
   gsap.to(".hero-content", {
     scrollTrigger: {
@@ -260,57 +321,45 @@ if (!REDUCED_MOTION) {
     opacity: 0,
     ease: "none",
   });
-}
 
-
-/* ───────────────────────────────────────────────────────────────
-   SCROLL ANIMATIONS — GSAP ScrollTrigger
-─────────────────────────────────────────────────────────────── */
-const revealDefaults = {
-  opacity: 0,
-  y: 30,
-  duration: 0.7,
-  ease: "power2.out",
-};
-
-function scrollReveal(targets, triggerEl, extra = {}) {
-  if (REDUCED_MOTION) return;
-  gsap.from(targets, {
-    ...revealDefaults,
-    scrollTrigger: {
-      trigger: triggerEl,
-      start: "top 82%",
-      toggleActions: "play none none none",
-    },
-    ...extra,
+  // Section headers
+  gsap.utils.toArray(".section-header").forEach((el) => {
+    scrollReveal(el, el);
   });
+
+  // Featured project cards
+  scrollReveal(".featured-card", ".featured-grid", { stagger: 0.12 });
+
+  // Timeline items — sequential
+  scrollReveal(".timeline-item", ".timeline", { duration: 0.5, stagger: 0.15 });
+
+  // Competition cards
+  scrollReveal(".comp-card", ".comp-list", { duration: 0.5, y: 20, stagger: 0.1 });
+
+  // Skills rows
+  scrollReveal(".skills-row", ".skills-block", { duration: 0.5, y: 20, stagger: 0.12 });
+
+  // Contact section
+  scrollReveal(".contact-inner > *", "#contact", { duration: 0.6, y: 20, stagger: 0.1 });
+
+  // Repo cards, if the GitHub grid has already rendered (re-enable case)
+  if (document.querySelector(".repo-card")) animateRepoCards();
 }
 
-// Section headers
-gsap.utils.toArray(".section-header").forEach((el) => {
-  scrollReveal(el, el);
-});
+function disableAnimations() {
+  ScrollTrigger.getAll().forEach((t) => t.kill());
+  gsap.killTweensOf("*");
+  // Restore everything to its natural, fully-visible state
+  gsap.set(ANIM_TARGETS, { clearProps: "all" });
+}
 
-// Featured project cards
-scrollReveal(".featured-card", ".featured-grid", { stagger: 0.12 });
-
-// Timeline items — sequential
-scrollReveal(".timeline-item", ".timeline", { duration: 0.5, stagger: 0.15 });
-
-// Competition cards
-scrollReveal(".comp-card", ".comp-list", { duration: 0.5, y: 20, stagger: 0.1 });
-
-// Skills rows
-scrollReveal(".skills-row", ".skills-block", { duration: 0.5, y: 20, stagger: 0.12 });
-
-// Contact section
-scrollReveal(".contact-inner > *", "#contact", { duration: 0.6, y: 20, stagger: 0.1 });
+if (animOn) initScrollAnimations();
 
 // GitHub grid (called after repos render)
 function animateRepoCards() {
   const cards = document.querySelectorAll(".repo-card");
   if (!cards.length) return;
-  if (!REDUCED_MOTION) {
+  if (animOn) {
     gsap.from(cards, {
       opacity: 0,
       y: 24,

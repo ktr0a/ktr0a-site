@@ -252,7 +252,15 @@ button { font-family: inherit; }
 .nav-link.active { color: var(--text); }
 .nav-link.active::after { transform: scaleX(1); }
 
-.theme-toggle {
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.theme-toggle,
+.anim-toggle {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
@@ -264,7 +272,8 @@ button { font-family: inherit; }
   flex-shrink: 0;
   transition: color 0.2s, border-color 0.2s, transform 0.2s;
 }
-.theme-toggle:hover {
+.theme-toggle:hover,
+.anim-toggle:hover {
   color: var(--accent);
   border-color: var(--accent-glow);
   transform: rotate(12deg);
@@ -272,6 +281,10 @@ button { font-family: inherit; }
 .theme-toggle .icon-moon { display: none; }
 body.light .theme-toggle .icon-sun { display: none; }
 body.light .theme-toggle .icon-moon { display: block; }
+
+.anim-toggle .icon-zap-off { display: none; }
+body.no-anim .anim-toggle .icon-zap { display: none; }
+body.no-anim .anim-toggle .icon-zap-off { display: block; }
 
 /* ───────────────────────────── HERO ─────────────────────────── */
 #hero {
@@ -1164,11 +1177,13 @@ body.light .project-card:hover {
   }
 }
 
-/* ──────────────────────── REDUCED MOTION ────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+/* ─────────────────────── ANIMATIONS OFF ─────────────────────────
+   Animations are on by default for everyone (the OS reduced-motion
+   setting is intentionally not consulted). The nav zap button adds
+   .no-anim to <body>, which kills all CSS animation & transitions. */
+body.no-anim *,
+body.no-anim *::before,
+body.no-anim *::after {
+  animation: none !important;
+  transition: none !important;
 }
