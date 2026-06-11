@@ -20,6 +20,30 @@ const FINE_POINTER   = window.matchMedia("(hover: hover) and (pointer: fine)").m
 
 
 /* ───────────────────────────────────────────────────────────────
+   LOADER — intro curtain on every visit / reload
+   Kept at the top so the curtain is dismissed even if something
+   later in this file throws. Fail-safe timer guarantees the page
+   is never left covered.
+─────────────────────────────────────────────────────────────── */
+const loaderEl = document.getElementById("loader");
+const HERO_DELAY = (loaderEl && !REDUCED_MOTION) ? 1.15 : 0.15;
+
+if (loaderEl) {
+  const hideLoader = () => loaderEl.classList.add("done");
+  setTimeout(hideLoader, 3500); // fail-safe
+
+  if (REDUCED_MOTION || typeof gsap === "undefined") {
+    hideLoader();
+  } else {
+    gsap.timeline({ onComplete: hideLoader })
+      .to(".loader-mark", { opacity: 1, duration: 0.45, ease: "power2.out" })
+      .to(".loader-mark", { opacity: 0, y: -20, duration: 0.3, ease: "power2.in" }, "+=0.25")
+      .to(loaderEl, { yPercent: -100, duration: 0.7, ease: "power4.inOut" }, "-=0.12");
+  }
+}
+
+
+/* ───────────────────────────────────────────────────────────────
    EMAIL OBFUSCATION  (logic preserved from original script.js)
 ─────────────────────────────────────────────────────────────── */
 const encoded1 = "&#111;&#117;&#108;&#103;&#110;&#97;&#105;&#113;";
@@ -123,23 +147,38 @@ themeToggle.addEventListener('click', () => {
 
 /* ───────────────────────────────────────────────────────────────
    CUSTOM CURSOR — instant dot + trailing ring
+   Runs whenever a fine pointer exists. The .has-custom-cursor
+   class is what hides the native cursor, so it is only added
+   here, once JS is actually positioning the custom one.
 ─────────────────────────────────────────────────────────────── */
-if (FINE_POINTER && !REDUCED_MOTION) {
+if (FINE_POINTER) {
+  document.body.classList.add("has-custom-cursor");
+
   const cursor     = document.getElementById("cursor");
   const cursorRing = document.getElementById("cursor-ring");
+  // Reduced motion: ring snaps to the pointer instead of trailing
+  const RING_EASE  = REDUCED_MOTION ? 1 : 0.16;
 
   let mouseX = window.innerWidth / 2,  mouseY = window.innerHeight / 2;
   let ringX  = mouseX,                 ringY  = mouseY;
+  let seen   = false; // stays hidden until the pointer first moves
 
   document.addEventListener("mousemove", (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
+    if (!seen) {
+      seen  = true;
+      ringX = mouseX;
+      ringY = mouseY;
+      cursor.style.opacity = "1";
+      cursorRing.style.opacity = "1";
+    }
     cursor.style.transform = `translate(${mouseX}px, ${mouseY}px)`;
   });
 
   function animateRing() {
-    ringX += (mouseX - ringX) * 0.16;
-    ringY += (mouseY - ringY) * 0.16;
+    ringX += (mouseX - ringX) * RING_EASE;
+    ringY += (mouseY - ringY) * RING_EASE;
     cursorRing.style.transform = `translate(${ringX}px, ${ringY}px)`;
     requestAnimationFrame(animateRing);
   }
@@ -151,6 +190,7 @@ if (FINE_POINTER && !REDUCED_MOTION) {
     cursorRing.style.opacity = "0";
   });
   document.addEventListener("mouseenter", () => {
+    if (!seen) return;
     cursor.style.opacity = "1";
     cursorRing.style.opacity = "1";
   });
@@ -194,7 +234,7 @@ if (!REDUCED_MOTION) {
     duration: 0.9,
     ease: "power3.out",
     stagger: 0.1,
-    delay: 0.15,
+    delay: HERO_DELAY, // starts as the loader curtain lifts
   });
 
   // Hero exit: content fades up as you scroll (scrubbed)

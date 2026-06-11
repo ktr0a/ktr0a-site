@@ -90,6 +90,37 @@ button { font-family: inherit; }
   color: #0b0b13;
 }
 
+/* ─────────────────────────── LOADER ─────────────────────────── */
+#loader {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+}
+
+#loader.done { display: none; }
+
+.loader-mark {
+  font-family: var(--font-mono);
+  font-size: clamp(1.3rem, 3.5vw, 2rem);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--text);
+  opacity: 0; /* animated in by JS */
+}
+
+.loader-dot {
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+}
+
 /* ─────────────────────────── FILM GRAIN ─────────────────────── */
 #grain {
   position: fixed;
@@ -101,14 +132,18 @@ button { font-family: inherit; }
   background-size: 256px 256px;
 }
 
-/* ─────────────────────────── CURSOR ─────────────────────────── */
+/* ─────────────────────────── CURSOR ───────────────────────────
+   Hidden by default; JS adds .has-custom-cursor to <body> only on
+   fine-pointer devices once it's driving the position. The native
+   cursor is never hidden unless the custom one is actually live. */
 #cursor, #cursor-ring { display: none; }
 
 @media (hover: hover) and (pointer: fine) {
-  body { cursor: none; }
-  a, button { cursor: none; }
+  body.has-custom-cursor,
+  body.has-custom-cursor a,
+  body.has-custom-cursor button { cursor: none; }
 
-  #cursor {
+  body.has-custom-cursor #cursor {
     display: block;
     position: fixed;
     top: 0; left: 0;
@@ -118,10 +153,11 @@ button { font-family: inherit; }
     border-radius: 50%;
     pointer-events: none;
     z-index: 9999;
+    opacity: 0; /* shown by JS on first mousemove */
     transition: opacity 0.25s ease;
   }
 
-  #cursor-ring {
+  body.has-custom-cursor #cursor-ring {
     display: block;
     position: fixed;
     top: 0; left: 0;
@@ -131,6 +167,7 @@ button { font-family: inherit; }
     border-radius: 50%;
     pointer-events: none;
     z-index: 9998;
+    opacity: 0; /* shown by JS on first mousemove */
     transition: opacity 0.25s ease,
                 width 0.25s ease, height 0.25s ease,
                 margin 0.25s ease, background 0.25s ease;
