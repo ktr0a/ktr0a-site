@@ -39,11 +39,14 @@ their static fallback values.
 
 ## Behaviour
 
-- **First visit:** a start screen (the logo breathes, "Click anywhere to start" below it); the click
-  starts the full build at 1x with the camera tour on, with sound from the first beat (that click is
-  the gesture browsers require before they allow audio). Esc skips straight to the page.
+- **First visit:** a start screen: the logo breathes while a see-through ring of agent cursors circles
+  it, waiting, and "Click anywhere to start" fades in below. The click presses the logo, the ring lights
+  up and becomes the boot swarm, and the full build plays at 1x with the camera tour on, with sound from
+  the first beat (that click is the gesture browsers require before they allow audio). Esc skips
+  straight to the page.
 - **Return visits:** no start screen; 2x with the tour off by default. Visitors can change both in the
-  settings gear (`ktr0a:returnSpeed`, `ktr0a:returnTour`).
+  settings gear (`ktr0a:returnSpeed`, `ktr0a:returnTour`), or turn on **Full build every visit**
+  (`ktr0a:alwaysFull`) to get the start screen and the full build every time.
 - **Rebuild** (nav), **Replay** (HUD) and **R** go back to the start screen and play the full build at
   1x with the tour on.
 - **Go live** (HUD, after the build) closes the HUD and scrolls back to the top of the finished page.

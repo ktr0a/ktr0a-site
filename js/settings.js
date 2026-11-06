@@ -1,11 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    settings.js: the small "Build settings" popover (gear in the nav)
 
-   What a returning visitor's automatic build looks like: playback speed
-   (1x / 2x / 4x) and autoscroll (the build's tour) on or off. The first visit
-   and the Rebuild button always play the full build at 1x; main.js owns those
-   rules, the storage keys and the live apply. This module only renders the
-   controls and reports changes.
+   What a returning visitor's automatic build looks like: either the full
+   animation every visit (start screen, 1x, tour), or a quicker build with its
+   own playback speed (1x / 2x / 4x) and autoscroll (the build's tour) on or
+   off. The first visit and the Rebuild button always play the full build at
+   1x; main.js owns those rules, the storage keys and the live apply. This
+   module only renders the controls and reports changes.
 
    Markup it injects (both removable, nothing else in the page is touched):
      .nav-actions › button#build-settings-btn.icon-btn[data-layer=chip]
@@ -14,9 +15,10 @@
      body › div#build-settings.build-settings.glass[role=dialog][hidden]
        (fixed, z-index above the build canvas and HUD; css/build.css)
 
-   Keyboard: the gear opens it and focus moves to the speed group (roving
-   tabindex, arrows / Home / End select); Tab walks gear → speed → autoscroll
-   → the next nav control, as if the panel sat right after the gear; Esc,
+   Keyboard: the gear opens it and focus moves to the first switch; Tab walks
+   gear → full build → speed (roving tabindex, arrows / Home / End select) →
+   autoscroll → the next nav control, as if the panel sat right after the gear
+   (speed and autoscroll are skipped while "full build" is on); Esc,
    an outside press or focus leaving close it. Esc is consumed while it is
    open, so it never also skips the build.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -43,8 +45,8 @@ function hasGlass() {
 
 /**
  * @param {object} o
- * @param {{ speed: 1|2|4, tour: boolean }} o.initial  the stored return-visit settings
- * @param {(value: { speed: number, tour: boolean, changed: "speed"|"tour" }) => void} o.onChange
+ * @param {{ speed: 1|2|4, tour: boolean, always: boolean }} o.initial  the stored return-visit settings
+ * @param {(value: { speed: number, tour: boolean, always: boolean, changed: "speed"|"tour"|"always" }) => void} o.onChange
  * @param {(name: string, opts?: object) => void} o.play  UI sound (fire-and-forget)
  * @returns {{ button: HTMLButtonElement, panel: HTMLElement, open(): void, close(): void, readonly isOpen: boolean, destroy(): void } | null}
  */
@@ -55,6 +57,7 @@ export function mountBuildSettings({ initial = {}, onChange = () => {}, play = (
   const value = {
     speed: SPEEDS.includes(Number(initial.speed)) ? Number(initial.speed) : 2,
     tour: initial.tour === true,
+    always: initial.always === true, // the full animation (start screen, 1x, tour) on every visit
   };
 
   /* ── gear ── */
@@ -86,35 +89,51 @@ export function mountBuildSettings({ initial = {}, onChange = () => {}, play = (
   panel.innerHTML = `
     <p class="bs-title">On return visits</p>
     <div class="bs-row">
-      <span class="bs-label" id="bs-speed-label">Speed</span>
-      <div class="bs-seg" role="radiogroup" aria-labelledby="bs-speed-label">${SPEEDS.map(
-        (n) => `<button type="button" class="bs-opt" role="radio" data-speed="${n}" aria-checked="false" tabindex="-1">${n}x</button>`
-      ).join("")}</div>
+      <span class="bs-label" id="bs-always-label">Full build every visit</span>
+      <button type="button" class="bs-switch" data-key="always" role="switch" aria-checked="false" aria-labelledby="bs-always-label"><span class="bs-knob" aria-hidden="true"></span></button>
     </div>
-    <div class="bs-row">
-      <span class="bs-label" id="bs-tour-label">Autoscroll</span>
-      <button type="button" class="bs-switch" role="switch" aria-checked="false" aria-labelledby="bs-tour-label"><span class="bs-knob" aria-hidden="true"></span></button>
+    <div class="bs-group">
+      <div class="bs-row">
+        <span class="bs-label" id="bs-speed-label">Speed</span>
+        <div class="bs-seg" role="radiogroup" aria-labelledby="bs-speed-label">${SPEEDS.map(
+          (n) => `<button type="button" class="bs-opt" role="radio" data-speed="${n}" aria-checked="false" tabindex="-1">${n}x</button>`
+        ).join("")}</div>
+      </div>
+      <div class="bs-row">
+        <span class="bs-label" id="bs-tour-label">Autoscroll</span>
+        <button type="button" class="bs-switch" data-key="tour" role="switch" aria-checked="false" aria-labelledby="bs-tour-label"><span class="bs-knob" aria-hidden="true"></span></button>
+      </div>
     </div>
     <p class="bs-note" id="bs-note">Your first visit and the Rebuild button always play the full build at 1x.</p>`;
   document.body.appendChild(panel);
 
   const radios = [...panel.querySelectorAll(".bs-opt")];
-  const toggle = panel.querySelector(".bs-switch");
+  const toggle = panel.querySelector('.bs-switch[data-key="tour"]');
+  const always = panel.querySelector('.bs-switch[data-key="always"]');
+  const group = panel.querySelector(".bs-group");
   const checkedRadio = () => radios.find((r) => Number(r.dataset.speed) === value.speed) || radios[0];
+  /** The last control in tab order: autoscroll, or "full build" while the quicker build's rows are off. */
+  const lastControl = () => (value.always ? always : toggle);
 
   function render() {
     for (const r of radios) {
       const on = Number(r.dataset.speed) === value.speed;
       r.setAttribute("aria-checked", String(on));
       r.tabIndex = on ? 0 : -1;
+      r.disabled = value.always;
     }
     toggle.setAttribute("aria-checked", String(value.tour));
+    toggle.disabled = value.always;
+    always.setAttribute("aria-checked", String(value.always));
+    // "Full build every visit" makes speed / autoscroll irrelevant: shown, but dimmed and inert
+    group.classList.toggle("is-off", value.always);
+    group.setAttribute("aria-disabled", String(value.always));
   }
   render();
 
   function emit(changed) {
     try {
-      onChange({ speed: value.speed, tour: value.tour, changed });
+      onChange({ speed: value.speed, tour: value.tour, always: value.always, changed });
     } catch (err) {
       console.warn("[settings] onChange failed:", err);
     }
@@ -131,10 +150,18 @@ export function mountBuildSettings({ initial = {}, onChange = () => {}, play = (
   }
 
   function flipTour() {
+    if (value.always) return;
     value.tour = !value.tour;
     render();
     play(value.tour ? "toggleOn" : "toggleOff");
     emit("tour");
+  }
+
+  function flipAlways() {
+    value.always = !value.always;
+    render();
+    play(value.always ? "toggleOn" : "toggleOff");
+    emit("always");
   }
 
   /* ── open / close ── */
@@ -166,7 +193,7 @@ export function mountBuildSettings({ initial = {}, onChange = () => {}, play = (
     panel.hidden = false;
     position();
     button.setAttribute("aria-expanded", "true");
-    checkedRadio().focus({ preventScroll: true, focusVisible: viaKeyboard });
+    always.focus({ preventScroll: true, focusVisible: viaKeyboard });
   }
 
   /** focusGear: Esc / gear / Tab-back closes give focus to the gear; outside presses and focus leaving do not. */
@@ -200,8 +227,11 @@ export function mountBuildSettings({ initial = {}, onChange = () => {}, play = (
   on(panel, "click", (e) => {
     const t = e.target instanceof Element ? e.target : null;
     const radio = t?.closest(".bs-opt");
-    if (radio) chooseSpeed(Number(radio.dataset.speed), { focus: true });
-    else if (t?.closest(".bs-switch")) flipTour();
+    const sw = t?.closest(".bs-switch");
+    if (radio) {
+      if (!value.always) chooseSpeed(Number(radio.dataset.speed), { focus: true });
+    } else if (sw?.dataset.key === "always") flipAlways();
+    else if (sw?.dataset.key === "tour") flipTour();
   });
 
   // Radio group: arrows move the selection (and focus), wrapping; Home / End jump.
@@ -217,14 +247,14 @@ export function mountBuildSettings({ initial = {}, onChange = () => {}, play = (
     chooseSpeed(SPEEDS[i], { focus: true });
   });
 
-  // Tab order as if the panel followed the gear in the DOM: gear → speed → autoscroll → next nav control.
+  // Tab order as if the panel followed the gear in the DOM: gear → full build → speed → autoscroll → next nav control.
   on(panel, "keydown", (e) => {
     if (e.key !== "Tab" || e.altKey || e.ctrlKey || e.metaKey) return;
-    const first = checkedRadio();
+    const first = always;
     if (e.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
       e.preventDefault();
       button.focus({ preventScroll: true }); // stays open: the gear belongs to it
-    } else if (!e.shiftKey && document.activeElement === toggle) {
+    } else if (!e.shiftKey && document.activeElement === lastControl()) {
       e.preventDefault();
       close();
       const controls = [...actions.querySelectorAll("button, a[href]")].filter((n) => n.getClientRects().length);
@@ -235,7 +265,7 @@ export function mountBuildSettings({ initial = {}, onChange = () => {}, play = (
   on(button, "keydown", (e) => {
     if (!isOpen || e.key !== "Tab" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
-    checkedRadio().focus({ preventScroll: true });
+    always.focus({ preventScroll: true });
   });
 
   // Esc closes the panel, and only the panel: consumed before the build's own Esc (skip) sees it.

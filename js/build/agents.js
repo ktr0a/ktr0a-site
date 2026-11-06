@@ -44,6 +44,9 @@ const BOOT_OFFSET = 190; // cluster centre distance from the logo tile (desktop)
 const BOOT_SWAY = 60;
 const TRAIL_SPACING = 7;
 const TRAIL_LIFE = 0.16;
+const RING_ALPHA = 0.42; // start screen: the waiting ring is see-through until the visitor presses start
+const RING_SPEED = 0.85; // rad/s around the logo tile
+const RING_LEAN = 0.38; // rad: tips point at the tile, leaning a little into the direction of travel
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const TAU = Math.PI * 2;
@@ -172,6 +175,7 @@ export function createSwarm({ scale = 1 } = {}) {
   let colorCursor = Math.floor(Math.random() * PALETTE.length);
   let spawned = 0; // total ever spawned this run (for "Rebuilt by N agents")
   let boot = null; // { cx, cy } viewport centre of the orbit
+  let ring = null; // start screen: { cx, cy, r } viewport centre and radius of the waiting ring
   const flock = new Map(); // leader id → wander goal state
 
   /** Viewport rectangle idle agents wander in (set by the director). */
@@ -208,6 +212,9 @@ export function createSwarm({ scale = 1 } = {}) {
       born: 0,
       dead: false,
       orbit: null,
+      alpha: 1, // drawn opacity, eases toward alphaTo
+      alphaTo: 1,
+      ring: null, // { i, n } on the start screen's waiting ring
     };
     agents.push(a);
     spawned++;
@@ -235,6 +242,25 @@ export function createSwarm({ scale = 1 } = {}) {
   /* ── choreography ── */
 
   /**
+   * Start screen: a see-through ring of cursors circles the logo tile, tips pointing at it, as if
+   * they were waiting for the visitor to press it. startBoot() takes them over at full opacity.
+   */
+  function startRing(cx, cy, { n = 8, r = 58 } = {}) {
+    ring = { cx, cy, r };
+    for (let i = 0; i < n; i++) {
+      const a = spawn({ x: cx, y: cy, mode: "ring" });
+      a.ring = { i, n };
+      a.alpha = 0;
+      a.alphaTo = RING_ALPHA;
+    }
+  }
+
+  /** The viewport changed while the ring waits (resize): keep it centred. */
+  function moveRing(cx, cy) {
+    if (ring) Object.assign(ring, { cx, cy });
+  }
+
+  /**
    * Boot: agents circle two loose clusters left and right of a viewport point; on portrait
    * screens the clusters sit above and below it, so both swarms stay fully on screen.
    */
@@ -248,9 +274,12 @@ export function createSwarm({ scale = 1 } = {}) {
       offset: portrait ? Math.min(BOOT_OFFSET, vh * 0.17) : Math.min(BOOT_OFFSET, vw * 0.27),
       sway: portrait ? Math.min(BOOT_SWAY, vw * 0.1) : BOOT_SWAY,
     };
+    ring = null;
     agents.forEach((a, i) => {
       const side = i % 2 ? 1 : -1;
       a.mode = "orbit";
+      a.ring = null;
+      a.alphaTo = 1; // the waiting ring (if any) lights up as the boot takes it over
       a.orbit = {
         side,
         r: rand(26, 105) * k,
@@ -342,7 +371,29 @@ export function createSwarm({ scale = 1 } = {}) {
 
   function stepAgent(a, dt, t, scrollY) {
     a.t = t;
+    if (a.alpha !== a.alphaTo) {
+      const k = 1 - Math.exp(-dt * 5);
+      a.alpha += (a.alphaTo - a.alpha) * k;
+      if (Math.abs(a.alphaTo - a.alpha) < 0.005) a.alpha = a.alphaTo;
+    }
     switch (a.mode) {
+      case "ring": {
+        const R = ring || { cx: vw / 2, cy: vh / 2, r: 58 };
+        const th = (a.ring ? (a.ring.i / a.ring.n) * TAU : 0) + RING_SPEED * t;
+        const nx = R.cx + Math.cos(th) * R.r;
+        const ny = scrollY + R.cy + Math.sin(th) * R.r;
+        if (!a.ringPlaced) {
+          a.ringPlaced = true;
+          a.tx = nx; // no trail from the spawn point to the ring
+          a.ty = ny;
+        }
+        a.x = nx;
+        a.y = ny;
+        a.vx = -Math.sin(th) * R.r * RING_SPEED;
+        a.vy = Math.cos(th) * R.r * RING_SPEED;
+        a.ringTh = th;
+        break;
+      }
       case "orbit": {
         const o = a.orbit;
         const c = boot || { cx: vw / 2, cy: vh / 2, portrait: false, offset: BOOT_OFFSET, sway: BOOT_SWAY };
@@ -442,6 +493,12 @@ export function createSwarm({ scale = 1 } = {}) {
   }
 
   function trailAndMarks(a, t) {
+    if (a.mode === "ring") {
+      // the waiting ring is slow and calm: crisp cursors, no ghost trail
+      a.tx = a.x;
+      a.ty = a.y;
+      return;
+    }
     const dx = a.x - a.tx;
     const dy = a.y - a.ty;
     const d = Math.hypot(dx, dy);
@@ -465,6 +522,10 @@ export function createSwarm({ scale = 1 } = {}) {
   }
 
   function updateAngle(a, dt) {
+    if (a.mode === "ring") {
+      a.angle = a.ringTh + Math.PI - RING_LEAN - ARROW_HEADING;
+      return;
+    }
     const speed = Math.hypot(a.vx, a.vy);
     const target = speed > 160 ? Math.atan2(a.vy, a.vx) - ARROW_HEADING : 0;
     let diff = target - a.angle;
@@ -521,12 +582,12 @@ export function createSwarm({ scale = 1 } = {}) {
         const tr = a.trail[i];
         const age = (t - tr.t) / TRAIL_LIFE;
         if (age >= 1) continue;
-        const alpha = (1 - age) * 0.5 * ((i + 1) / a.trail.length);
+        const alpha = (1 - age) * 0.5 * ((i + 1) / a.trail.length) * a.alpha;
         blit(ctx, sp.arrow, tr.x, tr.y - scrollY, tr.angle, alpha);
       }
       const glyph = speed > 420 ? "arrow" : a.glyph;
-      if (glyph === "arrow") blit(ctx, sp.arrow, a.x, y, a.angle, 1);
-      else blit(ctx, sp[glyph], a.x, y, 0, 1);
+      if (glyph === "arrow") blit(ctx, sp.arrow, a.x, y, a.angle, a.alpha);
+      else blit(ctx, sp[glyph], a.x, y, 0, a.alpha);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalAlpha = 1;
@@ -537,6 +598,8 @@ export function createSwarm({ scale = 1 } = {}) {
     idleArea,
     spawn,
     spawnAtEdge,
+    startRing,
+    moveRing,
     startBoot,
     scatter,
     departAll,
@@ -554,6 +617,15 @@ export function createSwarm({ scale = 1 } = {}) {
       flock.clear();
       spawned = 0;
       boot = null;
+      ring = null;
+    },
+    /** A new run's clock starts at 0: drop trails and + marks stamped with the old clock. */
+    resetClock() {
+      marks = [];
+      for (const a of agents) {
+        a.trail = [];
+        a.marks = [];
+      }
     },
     /** Agents still on screen and not leaving. */
     get count() {

@@ -439,6 +439,14 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     return lines;
   }
 
+  /** Viewport size + canvas only (the start screen has nothing else to measure yet). */
+  function measureViewport() {
+    vw = html.clientWidth || window.innerWidth;
+    vh = window.innerHeight;
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    resizeCanvas();
+  }
+
   function measure() {
     const sy = window.scrollY;
     vw = html.clientWidth || window.innerWidth;
@@ -1318,7 +1326,8 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     const sy = scroller.y;
     // two clusters: left/right of the tile, or above/below it on portrait screens (agents.js)
     const portrait = vh > vw * 1.15;
-    for (let i = 0; i < cfg.start; i++) {
+    // the start screen's waiting ring (if any) is already here: spawn only the rest
+    for (let i = swarm.count; i < cfg.start; i++) {
       const side = i % 2 ? 1 : -1;
       const p = portrait
         ? { x: cx + rand(-0.3, 0.3) * vw, y: cy + side * rand(90, 220) }
@@ -1381,6 +1390,11 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     adoptLogo();
     logo.classList.add("is-gate");
     hud?.hide();
+    // a see-through ring of cursors circles the tile, waiting for the press (agents.js)
+    measureViewport();
+    swarm.startRing(vw / 2, vh / 2, isMobile ? { n: 6, r: 52 } : { n: 8, r: 58 });
+    lastFrame = 0;
+    ensureLoop();
     const touch = window.matchMedia("(hover: none)").matches;
     const el = document.createElement("button");
     el.type = "button";
@@ -1395,6 +1409,10 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       if (gate !== g || destroyed) return;
       try {
         closeGate();
+        const tile = logo;
+        tile?.classList.add("is-pressed");
+        setTimeout(() => tile?.classList.remove("is-pressed"), 480);
+        play("click");
         begin();
       } catch (err) {
         fail(err);
@@ -1422,6 +1440,8 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     closeGate();
     logo?.remove();
     logo = null;
+    swarm.clear();
+    clearCanvas();
     finalizeDom();
     phase = "done";
     emit("done");
@@ -1434,6 +1454,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     skipped = false;
     finishing = -1;
     T = 0;
+    swarm.resetClock(); // the start screen ran on the old clock
     K = isMobile ? 0.72 : 0.82; // the work stays near the camera (AHEAD_LIMIT), so it runs a little quicker instead
     peakAgents = 0;
     currentSection = null;
@@ -1868,7 +1889,12 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
   function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      if (destroyed || phase === "idle" || phase === "gate") return;
+      if (destroyed || phase === "idle") return;
+      if (phase === "gate") {
+        measureViewport();
+        swarm.moveRing(vw / 2, vh / 2);
+        return;
+      }
       try {
         measure();
         ensureLoop();

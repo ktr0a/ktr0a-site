@@ -26,7 +26,10 @@
      HUD speed / tour       the current run only; nothing is persisted.
    Settings changes save at once and also apply live while a return-visit run is playing.
 
-   localStorage keys: 'ktr0a:anim' ('on'|'off'), the three above, plus the ones owned by
+   "Full build every visit" ('ktr0a:alwaysFull' = 'on', gear popover): every visit plays the full
+   animation with its start screen, like a first visit.
+
+   localStorage keys: 'ktr0a:anim' ('on'|'off'), the four above, plus the ones owned by
    sfx.js / data.js. The v1 key 'ktr0a:buildSpeed' is retired and removed on load.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -37,6 +40,7 @@ const ANIM_KEY = "ktr0a:anim";
 const VISITED_KEY = "ktr0a:visited";
 const RETURN_SPEED_KEY = "ktr0a:returnSpeed";
 const RETURN_TOUR_KEY = "ktr0a:returnTour";
+const ALWAYS_FULL_KEY = "ktr0a:alwaysFull"; // "on": the full animation (start screen, 1x, tour) on every visit
 const LEGACY_SPEED_KEY = "ktr0a:buildSpeed"; // v1 (remembered HUD speed): retired
 const SPEEDS = [1, 2, 4];
 const DEFAULT_RUN = Object.freeze({ speed: 1, tour: true }); // first visit, Rebuild, Replay, R
@@ -436,16 +440,23 @@ function flushPendingText() {
 
 let createDirector = null; // from ./build/director.js (loadEngines)
 
-/** The visitor's return-visit settings (gear popover): speed 1|2|4 (default 2), tour (default off). */
+/**
+ * The visitor's return-visit settings (gear popover): speed 1|2|4 (default 2), tour (default off),
+ * always (default off): the full animation on every visit instead of the quicker build.
+ */
 function readReturnSettings() {
   const n = Number(store.get(RETURN_SPEED_KEY));
-  return { speed: SPEEDS.includes(n) ? n : 2, tour: store.get(RETURN_TOUR_KEY) === "on" };
+  return { speed: SPEEDS.includes(n) ? n : 2, tour: store.get(RETURN_TOUR_KEY) === "on", always: store.get(ALWAYS_FULL_KEY) === "on" };
 }
 
-/** The automatic build on page load: the full animation on a first visit, the visitor's settings after. */
+/**
+ * The automatic build on page load: the full animation (start screen) on a first visit or when the
+ * visitor chose "Full build every visit"; otherwise the quicker return-visit build (no start screen).
+ */
 function automaticRun() {
   if (state.firstVisit) return { ...DEFAULT_RUN, kind: "first" };
-  const { speed, tour } = readReturnSettings();
+  const { speed, tour, always } = readReturnSettings();
+  if (always) return { ...DEFAULT_RUN, kind: "full" };
   return { speed, tour, kind: "return" };
 }
 
@@ -524,9 +535,10 @@ function rebuild() {
    return-visit build they also apply live (only the setting that changed). With animations off
    it still works: the settings simply apply to the next automatic build. */
 
-function onSettingsChange({ speed, tour, changed }) {
+function onSettingsChange({ speed, tour, always, changed }) {
   store.set(RETURN_SPEED_KEY, String(speed));
   store.set(RETURN_TOUR_KEY, tour ? "on" : "off");
+  store.set(ALWAYS_FULL_KEY, always ? "on" : "off"); // applies from the next visit on
   const s = directorState();
   if (state.runKind !== "return" || (s !== "boot" && s !== "build")) return;
   if (changed === "speed") guard("live speed", () => state.director.setSpeed(speed));
@@ -825,7 +837,7 @@ function boot() {
       if (createDirector) guard("preboot logo", showPrebootLogo);
       // The first visit shows its start screen right away (the 3D object warms up while the
       // visitor reads it); only the gear must be in the nav before the build plans.
-      if (automaticRun().kind === "first") return settingsReady;
+      if (automaticRun().kind !== "return") return settingsReady;
       const settled = Promise.allSettled([heroReady, visualsReady, settingsReady]);
       return Promise.race([settled, new Promise((r) => setTimeout(r, PREBOOT_WAIT_MS))]);
     })

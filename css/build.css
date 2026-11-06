@@ -161,28 +161,23 @@ html.build-smear main :is(.project-visual img, .hero3d) {
 .build-logo.is-out { scale: 0.4; opacity: 0; }
 
 /* ───────────────────────────── start gate ─────────────────────────────
-   The full animation waits for one click: the logo breathes, a ring ripples out of it, and
-   the prompt fades in below. The whole screen is the (transparent) start button. */
+   The full animation waits for one press: the logo breathes while a see-through ring of agent
+   cursors circles it (drawn on the build canvas, agents.js), and the prompt fades in below the
+   ring. The whole screen is the (transparent) start button. On the press the tile squashes and
+   springs back, and the ring lights up and becomes the boot swarm. */
 .build-logo.is-gate {
   animation: build-logo-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards, build-gate-breathe 2.4s ease-in-out 0.5s infinite;
 }
-.build-logo.is-gate::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  opacity: 0;
-  pointer-events: none;
-  animation: build-gate-ring 2.4s cubic-bezier(0.2, 0.7, 0.3, 1) 0.9s infinite;
-}
 @keyframes build-gate-breathe {
   0%, 100% { scale: 1; }
-  50% { scale: 1.06; }
+  50% { scale: 1.05; }
 }
-@keyframes build-gate-ring {
-  0% { opacity: 0.5; scale: 1; }
-  70%, 100% { opacity: 0; scale: 1.9; }
+.build-logo.is-pressed { animation: build-logo-press 0.45s cubic-bezier(0.3, 0.7, 0.3, 1); }
+@keyframes build-logo-press {
+  0% { scale: 1; }
+  30% { scale: 0.82; }
+  65% { scale: 1.07; }
+  100% { scale: 1; }
 }
 .build-gate {
   position: fixed;
@@ -208,12 +203,12 @@ html.build-smear main :is(.project-visual img, .hero3d) {
   animation: build-gate-text 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s forwards;
 }
 .build-gate__text {
-  top: calc(50% + 48px);
+  top: calc(50% + 98px);
   font: 500 15px/1.4 var(--font-sans, system-ui, sans-serif);
   color: var(--text-2, #c9cdd4);
 }
 .build-gate__hint {
-  top: calc(50% + 74px);
+  top: calc(50% + 124px);
   font: 400 12px/1.4 var(--font-sans, system-ui, sans-serif);
   color: var(--text-3, #9ea4ae);
   animation-delay: 1.2s;
@@ -527,6 +522,16 @@ html.build-smear main :is(.project-visual img, .hero3d) {
 
 .bs-opt:focus-visible,
 .bs-switch:focus-visible { outline: 2px solid var(--blue-2, #6c9bff); outline-offset: 2px; }
+
+/* Speed / autoscroll only shape the quicker return-visit build: inert while "Full build every visit" is on. */
+.bs-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  transition: opacity 0.2s ease;
+}
+.bs-group.is-off { opacity: 0.4; }
+.bs-group.is-off :is(.bs-opt, .bs-switch) { cursor: default; }
 
 .bs-note {
   margin: 8px 0 0;
