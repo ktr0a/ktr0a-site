@@ -50,14 +50,25 @@ const BUILD_TARGET = 13.2; // first task → last layer (planned), in build seco
 const TOUR_MAX_SPEED = 900; // px per build-second (desktop)
 const TOUR_MAX_SPEED_MOBILE = 650; // phones: fewer agents, so a gentler camera
 const TOUR_ANCHOR = 0.35; // next ready work sits this far down the viewport when little is in progress
-const TOUR_CENTER = 0.48; // where the median of the work in progress sits in the viewport
+const TOUR_CENTER = 0.62; // where the median of the work in progress sits in the viewport (lower half: the
+// camera shows the line being edited with finished work above it, and never runs ahead of the build)
+const TOUR_LOOKAHEAD = 1.3; // screens below the viewport top agents may take work during the tour (small: the camera
+// shows the line being edited, not work that already happened below the fold)
+const AHEAD_LIMIT = 2.0; // spare agents may pre-build at most this many screens below the viewport top (beyond
+// that they wait on screen: the camera shows the line being edited instead of chasing work far below)
+const AHEAD_LIMIT_MOBILE = 2.2; // a phone screen holds fewer layers, so the reach is a little longer
+const TOUR_GAIN = 1.8; // camera speed per px of distance to its goal (1/s)
+const TOUR_GOAL_TAU = 0.5; // s: the goal glides after the work (tasks starting/finishing never jerk the camera)
+const TOUR_ACCEL = 1100; // px/s²: gentlest speed-up…
+const TOUR_DECEL = 1600; // px/s²: …and slow-down (a camera, not a spring)
 // The timeline safety net never puts the camera more than this many screens past the oldest
 // unfinished layer. Phones get a tight leash: a long page and a small swarm would otherwise
 // leave the camera on empty layout while the work happens far above it.
-const TOUR_LEAD = 0.9;
+const TOUR_LEAD = 0.5;
 const TOUR_LEAD_MOBILE = 0.25;
 const HERO_DWELL = 0.75; // build seconds the first screen dwells (from "only clone retypes left") before the tour moves
-const HOLD_LOOKAHEAD = 3; // screens below the top agents may pre-build while the camera dwells
+const HOLD_LOOKAHEAD = 1.2; // screens below the top agents may pre-build while the camera dwells (kept short: when
+// the tour starts, the camera should arrive at work in progress, not at sections finished while it waited)
 const HERO_HOLD_MAX = 7; // …but never hold the camera longer than this after the burst
 const SMEAR_ON = 700; // tour speed (px/s) where the fast-scroll smear kicks in…
 const SMEAR_OFF = 520; // …and where it lets go (hysteresis, so it never flickers)
@@ -153,6 +164,8 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
 
   let tourVel = 0;
   let tourTarget = 0;
+  let tourGoal = -1; // smoothed tourTarget (-1: not started)
+  let tourY = -1; // the camera's own (sub-pixel) position; scrollY is whole pixels
   let heroReleaseT = -1; // build time when the opening dwell ends and the tour may move (-1: first screen not finished yet)
   let heroPastedT = -1; // build time when every first-screen layer was at least pasted (clone-edits only retyping)
   let behind = false; // the work lags the planned timeline by more than the tour may lead it
@@ -177,6 +190,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
   let canvas = null;
   let ctx = null;
   let logo = null;
+  let gate = null; // the start screen while it waits for the click: { el, begin }
   let hud = null;
   const swarm = createSwarm({ scale: 1 });
   const overlay = createOverlay();
@@ -302,16 +316,20 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     measure();
     tasks = [];
     for (const L of layers) {
-      if (!L.el.isConnected || (L.rect.w < 1 && L.rect.h < 1)) {
-        // not rendered (e.g. a hidden chip): nothing to build
-        L.state = "built";
-        L.wired = true;
-        L.el.classList.add("is-built");
+      if (!rendered(L)) {
+        markUnrendered(L); // e.g. a hidden chip or a card inside a closed dropdown: nothing to build
         continue;
       }
       makeTask(L);
     }
     recount();
+  }
+
+  const rendered = (L) => L.el.isConnected && (L.rect.w >= 1 || L.rect.h >= 1);
+  function markUnrendered(L) {
+    L.state = "built";
+    L.wired = true;
+    L.el.classList.add("is-built");
   }
 
   /**
@@ -473,7 +491,8 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     if (phase === "build" && tasks.length) buildWorkPlan();
     resizeCanvas();
     // the margin / column guides follow the container to its new x
-    if (aidsShown && currentSection) overlay.setAids({ key: currentSection.name, x: currentSection.cx, w: currentSection.cw, cols: currentSection.cols });
+    // (only while building: after the build the guides are gone for good, whatever re-measures)
+    if (phase === "build" && aidsShown && currentSection) overlay.setAids({ key: currentSection.name, x: currentSection.cx, w: currentSection.cw, cols: currentSection.cols });
   }
 
   function resizeCanvas() {
@@ -963,7 +982,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
   }
 
   /** How far below the viewport top agents may take work (screens). */
-  const lookahead = () => (holding ? HOLD_LOOKAHEAD : 1.45);
+  const lookahead = () => (holding ? HOLD_LOOKAHEAD : TOUR_LOOKAHEAD);
 
   function inWindow(L, sy) {
     if (L.fixed) return true;
@@ -1076,7 +1095,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       }
       if (!ready(t)) continue;
       if (!buildPhase || inWindow(t.layer, sy)) candidates.push(t);
-      else ahead.push(t);
+      else if (t.layer.rect.y < sy + vh * (isMobile ? AHEAD_LIMIT_MOBILE : AHEAD_LIMIT)) ahead.push(t); // spares stay near the camera
     }
 
     let idle = idleAgents(false);
@@ -1200,9 +1219,15 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     holding = tour && phase === "build" && T >= buildStart && heroHold();
     if (!tour || phase !== "build" || T < buildStart || holding) {
       tourVel = 0;
+      tourGoal = -1;
+      tourY = -1;
       setSmear(false);
       return sy;
     }
+    // The camera keeps its own sub-pixel position (slow stretches would otherwise stall on
+    // whole pixels and then lurch); it re-syncs only if something else moved the page.
+    if (tourY < 0 || Math.abs(tourY - sy) > 2) tourY = sy;
+    if (tourGoal < tourY) tourGoal = tourY;
     // Follow the swarm: the camera tracks the median of the work in progress, so the
     // viewport is always full of activity. Agents take visible work first and then the
     // lookahead below the fold, which pulls the median (and the camera) down the page.
@@ -1222,7 +1247,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       else if (ready(t) && L.rect.y < firstReady) firstReady = L.rect.y;
     }
     if (oldest === Infinity) {
-      tourVel *= 0.9;
+      tourVel = Math.max(0, tourVel - TOUR_DECEL * dt);
     } else {
       let target = tourTarget;
       if (active.length >= 3) {
@@ -1236,15 +1261,20 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       target = Math.max(target, Math.min(net, oldest + lead));
       target = clamp(Math.max(target, tourTarget), 0, Math.max(0, docH - vh));
       tourTarget = target;
+      // Smooth camera: the goal glides after the (jumpy) target, speed follows the distance to
+      // the goal, and acceleration and braking are capped. Never negative: the tour never
+      // scrolls back up.
+      tourGoal += (tourTarget - tourGoal) * (1 - Math.exp(-dt / TOUR_GOAL_TAU));
       const maxV = isMobile ? TOUR_MAX_SPEED_MOBILE : TOUR_MAX_SPEED;
-      const want = clamp((target - sy) * 2.6, -maxV, maxV);
-      tourVel += (want - tourVel) * (1 - Math.exp(-dt * 5));
+      const want = clamp((tourGoal - tourY) * TOUR_GAIN, 0, maxV);
+      const dv = want - tourVel;
+      tourVel = Math.max(0, tourVel + (dv > 0 ? Math.min(dv, TOUR_ACCEL * dt) : Math.max(dv, -TOUR_DECEL * dt)));
     }
-    const v = Math.abs(tourVel);
-    setSmear(smearOn ? v > SMEAR_OFF : v > SMEAR_ON);
-    if (Math.abs(tourVel) > 2) {
-      const next = clamp(sy + tourVel * dt, 0, Math.max(0, docH - vh));
-      if (Math.abs(next - sy) >= 0.5) {
+    setSmear(smearOn ? tourVel > SMEAR_OFF : tourVel > SMEAR_ON);
+    if (tourVel > 0.5) {
+      const next = clamp(tourY + tourVel * dt, tourY, Math.max(0, docH - vh));
+      if (next !== tourY) {
+        tourY = next;
         scroller.scrollTo(next, { duration: 0 });
         return next;
       }
@@ -1321,36 +1351,9 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     logo = null;
   }
 
-  function startRun() {
-    phase = "boot";
-    skipped = false;
-    finishing = -1;
-    T = 0;
-    K = isMobile ? 0.85 : 1.0;
-    peakAgents = 0;
-    currentSection = null;
-    aidsShown = false;
-    tourVel = 0;
-    tourTarget = 0;
-    heroReleaseT = -1;
-    heroPastedT = -1;
-    behind = false;
-    holding = false;
-    smearOn = false;
-    lastSectionDoneT = -Infinity;
-    starvedFor = 0;
-    spawnClock = 0.6;
-    qaSpawnClock = 1.5;
-    startedAt = performance.now();
-    lastFrame = 0;
-    runPromise = new Promise((r) => (resolveRun = r));
-
-    html.classList.add("build-pending");
-    document.querySelector("main")?.setAttribute("aria-busy", "true");
-    plan();
-    peakAgents = cfg.start;
-
-    // boot logo tile in the exact centre (main.js may already show it on the pre-boot screen: adopt it)
+  /** Boot logo tile in the exact centre (main.js may already show it on the pre-boot screen: adopt it). */
+  function adoptLogo() {
+    if (logo && logo.isConnected) return;
     const pre = document.querySelector(".build-logo[data-preboot]");
     if (pre) {
       pre.removeAttribute("data-preboot");
@@ -1362,6 +1365,102 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       logo.innerHTML = BRAND_SVG;
       document.body.appendChild(logo);
     }
+  }
+
+  /* ───────────────────────────── start gate ─────────────────────────────
+     The full animation (first visit, Rebuild, Replay, R) waits on a start screen: the boot
+     logo breathes in the centre and "Click anywhere to start" fades in below it. That click
+     is also the gesture browsers require before they allow sound, so the boot plays with its
+     sounds from the very first beat. Esc (or turning animations off) skips the build. */
+
+  function openGate(begin) {
+    closeGate();
+    phase = "gate";
+    html.classList.add("build-pending", "build-gating");
+    document.querySelector("main")?.setAttribute("aria-busy", "true");
+    adoptLogo();
+    logo.classList.add("is-gate");
+    hud?.hide();
+    const touch = window.matchMedia("(hover: none)").matches;
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "build-gate";
+    el.setAttribute("aria-label", "Start: watch this page get built, with sound");
+    el.innerHTML =
+      `<span class="build-gate__text">${touch ? "Tap" : "Click"} anywhere to start</span>` +
+      (touch ? "" : '<span class="build-gate__hint">Esc to skip</span>');
+    document.body.appendChild(el);
+    const g = { el, begin };
+    el.addEventListener("click", () => {
+      if (gate !== g || destroyed) return;
+      try {
+        closeGate();
+        begin();
+      } catch (err) {
+        fail(err);
+      }
+    });
+    gate = g;
+    try {
+      el.focus({ preventScroll: true });
+    } catch {
+      /* optional */
+    }
+    emit("gate");
+  }
+
+  function closeGate() {
+    if (!gate) return;
+    gate.el.remove();
+    gate = null;
+    html.classList.remove("build-gating");
+    logo?.classList.remove("is-gate");
+  }
+
+  /** Skips from the start screen straight to the finished page (Esc, animations off). */
+  function dismissGate() {
+    closeGate();
+    logo?.remove();
+    logo = null;
+    finalizeDom();
+    phase = "done";
+    emit("done");
+    resolveRun?.();
+    resolveRun = null;
+  }
+
+  function startRun() {
+    phase = "boot";
+    skipped = false;
+    finishing = -1;
+    T = 0;
+    K = isMobile ? 0.72 : 0.82; // the work stays near the camera (AHEAD_LIMIT), so it runs a little quicker instead
+    peakAgents = 0;
+    currentSection = null;
+    aidsShown = false;
+    tourVel = 0;
+    tourTarget = 0;
+    tourGoal = -1;
+    tourY = -1;
+    heroReleaseT = -1;
+    heroPastedT = -1;
+    behind = false;
+    holding = false;
+    smearOn = false;
+    lastSectionDoneT = -Infinity;
+    starvedFor = 0;
+    spawnClock = 0.6;
+    qaSpawnClock = 1.5;
+    startedAt = performance.now();
+    lastFrame = 0;
+    if (!resolveRun) runPromise = new Promise((r) => (resolveRun = r)); // start() with a gate made it already
+
+    html.classList.add("build-pending");
+    document.querySelector("main")?.setAttribute("aria-busy", "true");
+    plan();
+    peakAgents = cfg.start;
+
+    adoptLogo();
 
     hud.setState("boot");
     hud.setTour(tour);
@@ -1393,6 +1492,8 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     for (const L of layers) if (L.state !== "built") markBuilt(L);
     swarm.departAll();
     overlay.releaseAll(T, 0.5);
+    aidsShown = false; // the margin / column guides fade with everything else and never return
+    currentSection = null;
     setSmear(false);
     hud.setDone({ agents: Math.max(peakAgents, swarm.count), seconds, skipped, built: builtByAgents, total: layers.length });
     if (!skipped) play("complete");
@@ -1446,6 +1547,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     cancelJobs();
     restoreAll();
     finalizeDom();
+    closeGate();
     logo?.remove();
     logo = null;
     swarm.clear();
@@ -1494,7 +1596,10 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
         recollect(); // document order (for parent/group links); replaced layers are dropped
         added.forEach(linkLayer);
         measure();
-        for (const L of added) makeTask(L);
+        for (const L of added) {
+          if (rendered(L)) makeTask(L);
+          else markUnrendered(L);
+        }
         recount();
         return;
       }
@@ -1519,7 +1624,8 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     recount();
     measure();
     const sy = scroller.y;
-    const visible = added.some((L) => L.rect.y < sy + vh * 1.2 && L.rect.y + L.rect.h > sy - vh * 0.2);
+    for (const L of added) if (!rendered(L)) markUnrendered(L);
+    const visible = added.some((L) => L.state !== "built" && L.rect.y < sy + vh * 1.2 && L.rect.y + L.rect.h > sy - vh * 0.2);
     if (!visible) {
       for (const L of added) L.state = "built"; // off-screen: just appear
       return;
@@ -1721,6 +1827,11 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
         skip();
         break;
       case "golive":
+        // "Go live": leave the construction view and start reading the finished page from the top
+        play("click");
+        hud.hide();
+        if (scroller.y > 4) scroller.scrollTo(0, { duration: 1.1 });
+        break;
       case "close":
         play("click");
         hud.hide();
@@ -1737,7 +1848,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     const k = e.key;
     if (k === "Escape") {
       // Esc fast-forwards whatever is building, including a late-cards mini-build
-      if (phase === "boot" || phase === "build" || (phase === "done" && mini)) skip();
+      if (phase === "gate" || phase === "boot" || phase === "build" || (phase === "done" && mini)) skip();
       else if (phase === "done" && hud && !hud.hidden) hud.hide();
     } else if (k === "r" || k === "R") {
       // a bare letter key never overrides the visitor's "animations off" choice
@@ -1757,7 +1868,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
   function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      if (destroyed || phase === "idle") return;
+      if (destroyed || phase === "idle" || phase === "gate") return;
       try {
         measure();
         ensureLoop();
@@ -1827,7 +1938,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
    * tour:false (a return visit's setting) builds wherever the visitor is: no jump to the top.
    * A deep link (#section) always starts without the tour.
    */
-  function start({ speed: runSpeed, tour: wantTour = true } = {}) {
+  function start({ speed: runSpeed, tour: wantTour = true, gate: withGate = false } = {}) {
     if (destroyed || phase !== "idle") return runPromise;
     clearTimeout(window.__buildFailSafe);
     try {
@@ -1837,7 +1948,14 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       bootDur = performance.now() > LATE_START_MS ? LATE_BOOT_DUR : BOOT_DUR;
       tour = wantTour !== false && (!location.hash || location.hash === "#" || location.hash === "#hero");
       if (tour) scroller.scrollTo(0, { duration: 0 });
-      startRun();
+      if (withGate) {
+        runPromise = new Promise((r) => (resolveRun = r));
+        openGate(() => {
+          if (tour) scroller.scrollTo(0, { duration: 0 }); // in case the page moved while it waited
+          bootDur = BOOT_DUR; // the visitor chose to start: always the full boot
+          startRun();
+        });
+      } else startRun();
     } catch (err) {
       fail(err);
     }
@@ -1846,6 +1964,14 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
 
   function skip() {
     if (destroyed) return;
+    if (phase === "gate") {
+      try {
+        dismissGate();
+      } catch (err) {
+        fail(err);
+      }
+      return;
+    }
     if (phase === "done" && mini) {
       try {
         finishMini();
@@ -1882,7 +2008,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
   }
 
   /** Restarts the whole build from boot. Defaults to the full animation: 1x, tour on, from the top. */
-  function replay({ speed: runSpeed = 1, tour: wantTour = true } = {}) {
+  function replay({ speed: runSpeed = 1, tour: wantTour = true, gate: withGate = true } = {}) {
     if (destroyed) return;
     try {
       clearTimeout(window.__buildFailSafe);
@@ -1892,6 +2018,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       flushFx(true);
       swarm.clear();
       overlay.clear();
+      closeGate();
       logo?.remove();
       logo = null;
       mini = null;
@@ -1905,8 +2032,16 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       speedMul = SPEEDS.includes(Number(runSpeed)) ? Number(runSpeed) : 1;
       tour = wantTour !== false;
       if (tour) scroller.scrollTo(0, { duration: 0 });
-      hud.show();
-      startRun();
+      if (withGate) {
+        openGate(() => {
+          if (tour) scroller.scrollTo(0, { duration: 0 });
+          hud.show();
+          startRun();
+        });
+      } else {
+        hud.show();
+        startRun();
+      }
     } catch (err) {
       fail(err);
     }

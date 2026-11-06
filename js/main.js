@@ -21,6 +21,8 @@
                     'ktr0a:returnSpeed' (1|2|4, default 2), 'ktr0a:returnTour' ('on'|'off',
                     default 'off'; off = the camera stays where the visitor is).
      Rebuild / Replay / R   always the default animation: 1x, tour on, from the top.
+     Start screen   the first visit and Rebuild / Replay / R wait on "Click anywhere to start"
+                    (the click is also the gesture browsers need before sound may play).
      HUD speed / tour       the current run only; nothing is persisted.
    Settings changes save at once and also apply live while a return-visit run is playing.
 
@@ -94,7 +96,7 @@ const state = {
   animOn: store.get(ANIM_KEY) !== "off",
   firstVisit: store.get(VISITED_KEY) !== "1", // read once at load, before this visit's build marks it
   runKind: null, // the director's current run: 'first' | 'return' (automatic builds) | 'default' (Rebuild/Replay/R)
-  starting: false, // inside the automatic start() call (its 'boot' state is not a replay)
+  autoPending: false, // the automatic build was started but has not booted (or been skipped) yet
   settings: null, // build settings popover (./settings.js)
   director: null, // build engine instance (created only when a build runs)
   hero: null, // { setAnimate, dispose } from hero3d.js
@@ -454,8 +456,15 @@ function clearBuildPending() {
 
 function onDirectorState(s) {
   try {
-    // Any boot other than the automatic start() is a replay (HUD Replay, R, Rebuild): the default run.
-    if (s === "boot" && !state.starting) state.runKind = "default";
+    // The automatic build boots after its start screen (first visit) or at once (return visit).
+    // Any later boot is a replay (HUD Replay, R, Rebuild): the default run.
+    if (s === "boot" || s === "done") {
+      if (state.autoPending) {
+        state.autoPending = false;
+        // started or skipped from the start screen: from now on this visitor is a returning one
+        if (state.runKind !== "default") store.set(VISITED_KEY, "1");
+      } else if (s === "boot") state.runKind = "default";
+    }
     if (s === "done") flushPendingText();
     // A replay started from the HUD implies animations are wanted again, for this visit only:
     // the saved preference changes through the nav toggle / Rebuild button alone.
@@ -469,19 +478,14 @@ function onDirectorState(s) {
  * Creates a director and starts it. Any failure reveals the page instead of leaving it hidden.
  * kind 'first' | 'return': the automatic build on load (marks the visit); 'default': Rebuild.
  */
-function startDirector({ speed = DEFAULT_RUN.speed, tour = DEFAULT_RUN.tour, kind = "default" } = {}) {
+function startDirector({ speed = DEFAULT_RUN.speed, tour = DEFAULT_RUN.tour, kind = "default", gate = kind !== "return" } = {}) {
   try {
     if (typeof createDirector !== "function") throw new Error("build engine unavailable");
     state.director = createDirector({ root: document, scroller, sfx, speed, onState: onDirectorState });
     state.runKind = kind;
-    state.starting = true;
-    let run;
-    try {
-      run = state.director.start({ speed, tour });
-    } finally {
-      state.starting = false;
-    }
-    if (kind !== "default") store.set(VISITED_KEY, "1"); // the first automatic build has started
+    state.autoPending = true;
+    // gate: the start screen ("Click anywhere to start") before the full animation
+    const run = state.director.start({ speed, tour, gate });
     if (run && typeof run.catch === "function") {
       run.catch((err) => {
         warn("build", err);
@@ -512,7 +516,7 @@ function initialBuild() {
 function rebuild() {
   if (!state.animOn) setAnimations(true);
   if (!state.director) startDirector({ ...DEFAULT_RUN, kind: "default" });
-  else guard("replay", () => state.director.replay({ ...DEFAULT_RUN }));
+  else guard("replay", () => state.director.replay({ ...DEFAULT_RUN, gate: true }));
 }
 
 /* ─────────────────────────── build settings ───────────────────────────
@@ -819,6 +823,9 @@ function boot() {
       guard("ui sfx", initUiSfx);
       if (!building) return;
       if (createDirector) guard("preboot logo", showPrebootLogo);
+      // The first visit shows its start screen right away (the 3D object warms up while the
+      // visitor reads it); only the gear must be in the nav before the build plans.
+      if (automaticRun().kind === "first") return settingsReady;
       const settled = Promise.allSettled([heroReady, visualsReady, settingsReady]);
       return Promise.race([settled, new Promise((r) => setTimeout(r, PREBOOT_WAIT_MS))]);
     })

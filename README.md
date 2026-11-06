@@ -39,18 +39,22 @@ their static fallback values.
 
 ## Behaviour
 
-- **First visit:** the full build at 1x with the camera tour on.
-- **Return visits:** 2x with the tour off by default; visitors can change both in the settings gear
-  (`ktr0a:returnSpeed`, `ktr0a:returnTour`).
-- **Rebuild** (nav), **Replay** (HUD) and **R** always play the full build at 1x with the tour on.
-- **Sound** is on by default and starts as soon as the browser allows: immediately where autoplay is
-  permitted, otherwise on the first click, tap or key press anywhere on the page.
+- **First visit:** a start screen (the logo breathes, "Click anywhere to start" below it); the click
+  starts the full build at 1x with the camera tour on, with sound from the first beat (that click is
+  the gesture browsers require before they allow audio). Esc skips straight to the page.
+- **Return visits:** no start screen; 2x with the tour off by default. Visitors can change both in the
+  settings gear (`ktr0a:returnSpeed`, `ktr0a:returnTour`).
+- **Rebuild** (nav), **Replay** (HUD) and **R** go back to the start screen and play the full build at
+  1x with the tour on.
+- **Go live** (HUD, after the build) closes the HUD and scrolls back to the top of the finished page.
+- **Sound** is on by default. On a return visit it starts on the first click, tap or key press.
 - **Cursor:** on mouse and trackpad devices the arrow is a native CSS cursor (no lag); only the small "you"
   tag is moved by script and trails slightly. High-contrast (forced-colors) mode keeps the system cursor.
 
 ## Controls
 
-- **Esc** skips the build, **R** replays it, **M** toggles sound, **T** toggles the camera tour.
+- **Esc** skips the build (also from the start screen), **R** replays it, **M** toggles sound, **T** toggles
+  the camera tour.
 - The nav has sound and animation toggles, the settings gear and a **Rebuild** button. Animations stay on
   regardless of the OS reduced-motion setting; the toggle turns them off (saved in `localStorage` as
   `ktr0a:anim`).

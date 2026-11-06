@@ -159,6 +159,70 @@ html.build-smear main :is(.project-visual img, .hero3d) {
   transition: scale 0.35s cubic-bezier(0.6, 0, 0.8, 0.4), opacity 0.3s ease-in;
 }
 .build-logo.is-out { scale: 0.4; opacity: 0; }
+
+/* ───────────────────────────── start gate ─────────────────────────────
+   The full animation waits for one click: the logo breathes, a ring ripples out of it, and
+   the prompt fades in below. The whole screen is the (transparent) start button. */
+.build-logo.is-gate {
+  animation: build-logo-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards, build-gate-breathe 2.4s ease-in-out 0.5s infinite;
+}
+.build-logo.is-gate::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  animation: build-gate-ring 2.4s cubic-bezier(0.2, 0.7, 0.3, 1) 0.9s infinite;
+}
+@keyframes build-gate-breathe {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.06; }
+}
+@keyframes build-gate-ring {
+  0% { opacity: 0.5; scale: 1; }
+  70%, 100% { opacity: 0; scale: 1.9; }
+}
+.build-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 8995;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: var(--cur-link, pointer);
+  -webkit-tap-highlight-color: transparent;
+}
+.build-gate:focus { outline: none; }
+.build-gate__text,
+.build-gate__hint {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  white-space: nowrap;
+  opacity: 0;
+  animation: build-gate-text 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s forwards;
+}
+.build-gate__text {
+  top: calc(50% + 48px);
+  font: 500 15px/1.4 var(--font-sans, system-ui, sans-serif);
+  color: var(--text-2, #c9cdd4);
+}
+.build-gate__hint {
+  top: calc(50% + 74px);
+  font: 400 12px/1.4 var(--font-sans, system-ui, sans-serif);
+  color: var(--text-3, #9ea4ae);
+  animation-delay: 1.2s;
+}
+.build-gate:focus-visible .build-gate__text { color: var(--text, #f4f5f7); }
+@keyframes build-gate-text {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
 @keyframes build-logo-in {
   from { scale: 0.6; opacity: 0; }
   to { scale: 1; opacity: 1; }
