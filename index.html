@@ -2,331 +2,571 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Qiang Luo — ktr0a</title>
-  <meta name="description" content="CS student & builder. ETH Zurich CS, fall 2026. I build software tools and run a 160k YouTube channel." />
+  <script>
+    /* Build-on-load gate: hide layers only when JS runs AND the visitor hasn't turned animations off.
+       Fail-safe: never leave the page hidden if the build engine fails to start. */
+    (function () {
+      try {
+        if (localStorage.getItem("ktr0a:anim") === "off") return;
+      } catch (e) {}
+      document.documentElement.classList.add("build-pending");
+      window.__buildFailSafe = setTimeout(function () {
+        document.documentElement.classList.remove("build-pending");
+      }, 6000);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Qiang Luo (ktr0a): systems, agents &amp; software</title>
+  <meta name="description" content="Qiang Luo (ktr0a): Computer Science student at ETH Zürich. I build multi-agent systems, study tools and apps with Claude Code, and run Applino, a 160k+ subscriber YouTube channel." />
+  <meta name="theme-color" content="#08080a" />
+  <link rel="canonical" href="https://qluo.dev/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://qluo.dev/" />
+  <meta property="og:title" content="Qiang Luo (ktr0a)" />
+  <meta property="og:description" content="CS @ ETH Zürich. Multi-agent systems, study tools, Android apps, and a 160k+ YouTube channel. This site rebuilds itself live, by agents, on every visit." />
+  <meta property="og:image" content="https://qluo.dev/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="ktr0a.dev: I build systems that run themselves." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="css/build.css" />
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+        "lenis": "https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.mjs"
+      }
+    }
+  </script>
+  <!-- The whole module graph in one round trip (after the import map, which must come first).
+       A failed preload is harmless: main.js loads the engines with guarded dynamic imports. -->
+  <link rel="modulepreload" href="js/data.js" />
+  <link rel="modulepreload" href="js/sfx.js" />
+  <link rel="modulepreload" href="js/build/director.js" />
+  <link rel="modulepreload" href="js/build/agents.js" />
+  <link rel="modulepreload" href="js/build/overlay.js" />
+  <link rel="modulepreload" href="js/build/typer.js" />
+  <link rel="modulepreload" href="js/build/hud.js" />
+  <link rel="modulepreload" href="js/hero3d.js" />
+  <!-- If the entry module (or a static import of it) fails to load, reveal the page at once
+       instead of waiting for the 6 s fail-safe. -->
+  <script type="module" src="js/main.js" onerror="document.documentElement.classList.remove('build-pending');clearTimeout(window.__buildFailSafe)"></script>
+  <!-- Without JavaScript: hide what only JS can fill (obfuscated email, live repo list). -->
+  <noscript><style>.email-box, .footer-contact, .repo-loading { display: none !important; }</style></noscript>
 </head>
 <body>
 
-  <!-- Intro loader curtain -->
-  <div id="loader" aria-hidden="true">
-    <span class="loader-mark">ktr0a<span class="loader-dot">.</span></span>
-  </div>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-  <!-- Film grain overlay -->
-  <div id="grain" aria-hidden="true"></div>
+  <!-- ═════════════════════════════════════ NAV ═════════════════════════════════════ -->
+  <header id="nav" class="nav" data-section="nav">
+    <div class="container nav-inner">
+      <a href="#hero" class="brand" aria-label="ktr0a, back to top">
+        <span class="brand-mark" data-layer="icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="22" height="22"><rect x="1" y="1" width="30" height="30" rx="8" fill="currentColor"/><path d="M11 8.5v14.2l3.6-3.4 2.5 5.6 2.6-1.2-2.5-5.5 4.9-.3z" fill="#08080a"/></svg>
+        </span>
+        <span class="brand-word" data-layer="text">ktr0a<span class="brand-dim">.dev</span></span>
+      </a>
 
-  <!-- Custom cursor -->
-  <div id="cursor" aria-hidden="true"></div>
-  <div id="cursor-ring" aria-hidden="true"></div>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#work"    class="nav-link" data-nav="work"    data-layer="text" data-clone="nav" data-qa>Work</a>
+        <a href="#about"   class="nav-link" data-nav="about"   data-layer="text" data-clone="nav">About</a>
+        <a href="#record"  class="nav-link" data-nav="record"  data-layer="text" data-clone="nav">Record</a>
+        <a href="#stack"   class="nav-link" data-nav="stack"   data-layer="text" data-clone="nav">Stack</a>
+        <a href="#contact" class="nav-link" data-nav="contact" data-layer="text" data-clone="nav">Contact</a>
+      </nav>
 
-  <!-- ═══════════════════════════════════ NAV ═══════════════════════════════════ -->
-  <nav id="nav">
-    <div class="nav-inner">
-      <a href="#hero" class="nav-wordmark">ktr0a<span class="nav-wordmark-dot">.</span></a>
-      <div class="nav-links">
-        <a href="#projects"     class="nav-link" data-section="projects">projects</a>
-        <a href="#about"        class="nav-link" data-section="about">about</a>
-        <a href="#competitions" class="nav-link" data-section="competitions">competitions</a>
-        <a href="#skills"       class="nav-link" data-section="skills">skills</a>
-        <a href="#contact"      class="nav-link" data-section="contact">contact</a>
-      </div>
       <div class="nav-actions">
-        <button id="anim-toggle" class="anim-toggle" aria-label="Toggle animations">
-          <svg class="icon-zap" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          <svg class="icon-zap-off" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="12.41 6.75 13 2 10.57 4.92"/><polyline points="18.57 12.91 21 10 15.66 10"/><polyline points="8 8 3 14 12 14 11 22 16 16"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        <button class="icon-btn" id="sound-toggle" type="button" aria-pressed="true" aria-label="Sound" data-layer="chip" title="Sound (M)">
+          <svg class="i-sound-on" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>
+          <svg class="i-sound-off" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>
         </button>
-        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark theme">
-          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <button class="icon-btn" id="anim-toggle" type="button" aria-pressed="true" aria-label="Animations" data-layer="chip" title="Animations">
+          <svg class="i-anim-on" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>
+          <svg class="i-anim-off" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.4 6.8 13 2l-2.4 2.9M18.6 12.9 21 10h-5.3M8 8l-5 6h9l-1 8 5-6M1 1l22 22"/></svg>
         </button>
+        <button class="btn btn-ghost btn-sm" id="rebuild-btn" type="button" data-layer="button" title="Rebuild this page (R)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          <span>Rebuild</span>
+        </button>
+        <a class="btn btn-light btn-sm nav-gh" href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" data-layer="button">GitHub <span aria-hidden="true">↗</span></a>
       </div>
     </div>
-  </nav>
+  </header>
 
-  <!-- ═══════════════════════════════════ HERO ═══════════════════════════════════ -->
-  <section id="hero">
-    <div class="hero-aurora" aria-hidden="true">
-      <div class="aurora-blob aurora-1"></div>
-      <div class="aurora-blob aurora-2"></div>
-      <div class="aurora-blob aurora-3"></div>
-    </div>
-    <div class="hero-lines" aria-hidden="true"></div>
+  <main id="main">
 
-    <div class="hero-content">
-      <p class="hero-handle reveal-hero"><span class="handle-bracket">[</span> ktr0a <span class="handle-bracket">]</span></p>
-      <h1 class="hero-name reveal-hero">
-        <span class="hero-name-line">Qiang</span>
-        <span class="hero-name-line hero-name-accent">Luo</span>
-      </h1>
-      <p class="hero-tagline reveal-hero">CS student &amp; builder. <span class="tagline-em">ETH Zurich CS, fall 2026.</span></p>
-      <p class="hero-oneliner reveal-hero">I build software tools and run a 160k YouTube channel.</p>
-      <div class="hero-ctas reveal-hero">
-        <a href="#projects" class="btn btn-primary"><span>View Projects</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg></a>
-        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="btn btn-ghost"><span>GitHub</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg></a>
-      </div>
-    </div>
-
-    <div class="hero-scroll-hint" aria-hidden="true">
-      <span>scroll</span>
-      <div class="scroll-line"></div>
-    </div>
-  </section>
-
-  <!-- ═════════════════════════════════ PROJECTS ═════════════════════════════════ -->
-  <section id="projects">
-    <div class="section-inner">
-      <header class="section-header">
-        <span class="section-index">01</span>
-        <h2 class="section-heading">Projects</h2>
-        <div class="section-rule"></div>
-      </header>
-
-      <!-- Featured cards -->
-      <div class="featured-grid">
-
-        <!-- Finance Analyzer -->
-        <a href="https://github.com/ktr0a/Finance-app" target="_blank" rel="noopener noreferrer" class="project-card featured-card spotlight" aria-label="View Finance Analyzer on GitHub">
-          <div class="card-glow" aria-hidden="true"></div>
-          <div class="card-top">
-            <span class="card-kicker">Software</span>
-            <span class="card-arrow" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg></span>
+    <!-- ═════════════════════════════════════ HERO ═════════════════════════════════════ -->
+    <section id="hero" class="hero" data-section="hero" data-cols="12">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow" data-layer="text" data-qa><span class="dot dot-green" aria-hidden="true"></span>CS student · ETH Zürich <span class="eyebrow-sep">/</span> Vienna → Zürich</p>
+          <h1 class="display" data-layer="heading">
+            <span class="display-l1">I build systems</span>
+            <span class="display-l2">that run themselves.</span>
+          </h1>
+          <p class="lead" data-layer="text">I’m Qiang Luo, known online as ktr0a. I study Computer Science at ETH Zürich, design multi-agent setups, study tools and Android apps with Claude Code, and run <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer">Applino</a>, a YouTube channel with 160k+ subscribers.</p>
+          <div class="hero-ctas">
+            <a href="#work" class="btn btn-light" data-layer="button">See the work</a>
+            <a href="#contact" class="btn btn-ghost" data-layer="button">Start a conversation</a>
           </div>
-          <h3 class="card-title">Finance Analyzer</h3>
-          <p class="card-desc">Python tool that parses bank PDF exports, analyzes monthly spending, and renders an interactive local web dashboard with charts. Built CLI-first, then extended with a PDF parser and browser-based visualization.</p>
-          <div class="card-tags">
-            <span class="tag">Python</span>
-            <span class="tag">PDF Parsing</span>
-            <span class="tag">Data Visualization</span>
-            <span class="tag">CLI</span>
-          </div>
-        </a>
+        </div>
 
-        <!-- Applino -->
-        <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="project-card featured-card spotlight" id="card-applino" aria-label="Visit Applino on YouTube">
-          <div class="card-glow" aria-hidden="true"></div>
-          <div class="card-top">
-            <span class="card-kicker">Creator</span>
-            <span class="card-arrow" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg></span>
-          </div>
-          <div class="applino-title-row">
-            <img src="realapplino-avatar.jpg" alt="Applino channel avatar" class="applino-avatar" />
-            <h3 class="card-title">Applino</h3>
-          </div>
-          <div class="yt-stats">
-            <span class="yt-stat-pill"><span class="yt-stat-num" id="yt-subs">160k+</span> subscribers</span>
-            <span class="yt-stat-pill"><span class="yt-stat-num" id="yt-videos">—</span> videos</span>
-          </div>
-          <p class="card-desc">160k+ subscriber YouTube channel. Led a creative team of 5, iterated on content strategy through YouTube Studio analytics, and assisted in the growth of two other channels (100k+, 10k+). Full production and growth operation.</p>
-          <div class="card-tags">
-            <span class="tag">YouTube</span>
-            <span class="tag">Content Strategy</span>
-            <span class="tag">Analytics</span>
-            <span class="tag">Team Lead</span>
-          </div>
-        </a>
-
+        <div class="hero-visual" data-layer="media" aria-hidden="true">
+          <div class="hero3d" id="hero3d"><div class="hero3d-fallback"></div></div>
+        </div>
       </div>
 
-      <!-- GitHub repos grid -->
-      <div class="repos-header">
-        <span class="repos-label">More on GitHub</span>
-        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="repos-link">github.com/ktr0a <span aria-hidden="true">↗</span></a>
+      <div class="container">
+        <dl class="stats" data-layer="box">
+          <div class="stat" data-layer="text" data-clone="stats">
+            <dt class="stat-label">Subscribers</dt>
+            <dd class="stat-value" data-yt="subs">160k+</dd>
+          </div>
+          <div class="stat" data-layer="text" data-clone="stats">
+            <dt class="stat-label">Video views</dt>
+            <dd class="stat-value" data-yt="views">13.7M+</dd>
+          </div>
+          <div class="stat" data-layer="text" data-clone="stats">
+            <dt class="stat-label">Always-on agents</dt>
+            <dd class="stat-value">06</dd>
+          </div>
+          <div class="stat" data-layer="text" data-clone="stats">
+            <dt class="stat-label">ETH CS, since</dt>
+            <dd class="stat-value">2026</dd>
+          </div>
+        </dl>
       </div>
-      <div id="github-grid" class="github-grid">
-        <p class="loading-text">Loading repos…</p>
+    </section>
+
+    <!-- ═══════════════════════════════════ WHAT I DO ═══════════════════════════════════ -->
+    <section id="focus" class="section" data-section="focus" data-cols="12">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow" data-layer="text"><span class="idx">[01]</span> What I do</p>
+          <h2 class="display display-md" data-layer="heading">
+            <span class="display-l1">Depth over</span>
+            <span class="display-l2">decoration.</span>
+          </h2>
+          <p class="section-intro" data-layer="text">I like problems with moving parts: systems that have to keep working when nobody is watching, tools that remove friction from a day, and stories that have to land with real people.</p>
+        </div>
+
+        <div class="focus-grid">
+          <article class="focus-item" data-layer="box">
+            <hr class="focus-rule" data-layer="rule" />
+            <p class="mono-tag" data-layer="text">01 / Agents</p>
+            <h3 class="focus-title" data-layer="text" data-clone="focus">Agent systems</h3>
+            <p class="focus-text" data-layer="text">Multi-session Claude Code setups with a coordinator, role agents, handovers, schedules and guardrails. They run around the clock on a cloud VM I manage myself.</p>
+          </article>
+          <article class="focus-item" data-layer="box">
+            <hr class="focus-rule" data-layer="rule" />
+            <p class="mono-tag" data-layer="text">02 / Product</p>
+            <h3 class="focus-title" data-layer="text" data-clone="focus">Product engineering</h3>
+            <p class="focus-text" data-layer="text">TypeScript, Kotlin and Python tools that get used every day: an Obsidian study cockpit, a handwriting app for my tablet, a personal finance analyzer.</p>
+          </article>
+          <article class="focus-item" data-layer="box">
+            <hr class="focus-rule" data-layer="rule" />
+            <p class="mono-tag" data-layer="text">03 / Audience</p>
+            <h3 class="focus-title" data-layer="text" data-clone="focus">Content &amp; growth</h3>
+            <p class="focus-text" data-layer="text">Applino: 160k+ subscribers and 13.7M+ views. I led a creative team of five, steered strategy with YouTube analytics, and helped grow two more channels.</p>
+          </article>
+        </div>
       </div>
+    </section>
 
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════ ABOUT ══════════════════════════════════ -->
-  <section id="about">
-    <div class="section-inner">
-      <header class="section-header">
-        <span class="section-index">02</span>
-        <h2 class="section-heading">About</h2>
-        <div class="section-rule"></div>
-      </header>
-
-      <div class="timeline">
-
-        <div class="timeline-item">
-          <div class="timeline-marker">
-            <div class="timeline-dot"></div>
-            <div class="timeline-line"></div>
+    <!-- ═════════════════════════════════════ WORK ═════════════════════════════════════ -->
+    <section id="work" class="section" data-section="work" data-cols="12">
+      <div class="container">
+        <div class="section-head section-head--split">
+          <div>
+            <p class="eyebrow" data-layer="text"><span class="idx">[02]</span> Selected work</p>
+            <h2 class="display display-md" data-layer="heading">
+              <span class="display-l1">Things I built</span>
+              <span class="display-l2">and actually use.</span>
+            </h2>
           </div>
-          <div class="timeline-body">
-            <span class="timeline-org">ETH Zurich</span>
-            <span class="timeline-role">BSc Computer Science, starting fall 2026</span>
-          </div>
+          <p class="section-intro" data-layer="text">Most of it was built in autumn 2026 with Claude Code as my pair. I design the architecture, set the constraints and review every change.</p>
         </div>
 
-        <div class="timeline-item">
-          <div class="timeline-marker">
-            <div class="timeline-dot"></div>
-            <div class="timeline-line"></div>
+        <!-- Project 01 -->
+        <article class="project" data-layer="box">
+          <div class="project-copy">
+            <div class="project-meta">
+              <span class="mono-label" data-layer="text">Project / 01</span>
+              <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Live</span>
+            </div>
+            <p class="project-tag" data-layer="text" data-qa>Multi-agent study system</p>
+            <h3 class="project-title" data-layer="heading">Uni OS</h3>
+            <p class="project-desc" data-layer="text">The operating system of my first ETH semester. An Obsidian vault of about 690 notes, run by a team of Claude Code sessions: a coordinator plus role agents for planning, tracking and per-course exercise help. They hand work to each other through notes, a single sync job applies every change, an hourly git history records it, and strict academic-integrity rules mean hints only.</p>
+            <ul class="project-parts">
+              <li data-layer="text" data-clone="parts"><b>uni-vm</b> · 24/7 Google Cloud VM: six self-resuming agent sessions, ~15 scheduled jobs, budgeted phone pushes</li>
+              <li data-layer="text" data-clone="parts"><b>Quick View</b> · phone page with today, week and courses, live from Calendar and Drive in ~1.1 s</li>
+              <li data-layer="text" data-clone="parts"><b>System dashboard</b> · a live SVG map of the whole system that never shows green for what it can’t see</li>
+            </ul>
+            <ul class="chips" aria-label="Tech">
+              <li class="chip" data-layer="chip">Claude Code</li>
+              <li class="chip" data-layer="chip">GCP</li>
+              <li class="chip" data-layer="chip">systemd · tmux</li>
+              <li class="chip" data-layer="chip">rclone</li>
+              <li class="chip" data-layer="chip">Bash</li>
+              <li class="chip" data-layer="chip">Obsidian</li>
+            </ul>
+            <p class="project-note mono-label" data-layer="text">Private repo · walkthrough on request</p>
           </div>
-          <div class="timeline-body">
-            <span class="timeline-org">Zivildienst</span>
-            <span class="timeline-role">Civilian service, Vienna, 2025–2026</span>
+          <div class="project-visual" data-layer="media">
+            <img src="assets/visuals/uni-os.svg" alt="Diagram of Uni OS: a coordinator agent connected to role agents, the vault, a sync job and the cloud VM" loading="eager" decoding="async" />
           </div>
+        </article>
+
+        <!-- Project 02 -->
+        <article class="project project--flip" data-layer="box">
+          <div class="project-copy">
+            <div class="project-meta">
+              <span class="mono-label" data-layer="text">Project / 02</span>
+              <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Daily driver</span>
+            </div>
+            <p class="project-tag" data-layer="text">Obsidian plugin · TypeScript</p>
+            <h3 class="project-title" data-layer="heading">Uni Cockpit</h3>
+            <p class="project-desc" data-layer="text">A calm study dashboard that reads my vault live. It has its own iCal parser (recurring, moved and cancelled events, time zones), Focus, Dashboard and Agenda layouts, and an optional Claude side panel that picks Haiku or Sonnet per question and shows tokens and cost for every answer. API keys stay in Obsidian’s keychain; tests run against frozen copies of real notes.</p>
+            <ul class="chips" aria-label="Tech">
+              <li class="chip" data-layer="chip">TypeScript</li>
+              <li class="chip" data-layer="chip">esbuild</li>
+              <li class="chip" data-layer="chip">Obsidian API</li>
+              <li class="chip" data-layer="chip">Anthropic SDK</li>
+              <li class="chip" data-layer="chip">iCal</li>
+            </ul>
+            <p class="project-note mono-label" data-layer="text">Private repo · walkthrough on request</p>
+          </div>
+          <div class="project-visual" data-layer="media">
+            <img src="assets/visuals/cockpit.svg" alt="Mock-up of the Uni Cockpit dashboard with today's agenda, course cards and a Claude side panel" loading="eager" decoding="async" />
+          </div>
+        </article>
+
+        <!-- Project 03 -->
+        <article class="project" data-layer="box">
+          <div class="project-copy">
+            <div class="project-meta">
+              <span class="mono-label" data-layer="text">Project / 03</span>
+              <span class="status status-beta" data-layer="chip"><span class="dot dot-amber" aria-hidden="true"></span>V6</span>
+            </div>
+            <p class="project-tag" data-layer="text" data-qa>Android · Kotlin</p>
+            <h3 class="project-title" data-layer="heading">Quiet Notes</h3>
+            <p class="project-desc" data-layer="text">A distraction-free handwriting app for my 13″ tablet: low-latency ink, strokes stored as vectors, atomic saves and a versioned file format with migrations. One on-canvas button, PDF annotation and export, lasso and scribble-to-erase. Notebooks sync into the right course folders on Drive.</p>
+            <ul class="chips" aria-label="Tech">
+              <li class="chip" data-layer="chip">Kotlin</li>
+              <li class="chip" data-layer="chip">Jetpack Compose</li>
+              <li class="chip" data-layer="chip">androidx.ink</li>
+              <li class="chip" data-layer="chip">PdfBox</li>
+            </ul>
+            <p class="project-note mono-label" data-layer="text">Private repo · walkthrough on request</p>
+          </div>
+          <div class="project-visual" data-layer="media">
+            <img src="assets/visuals/quiet-notes.svg" alt="Tablet mock-up of Quiet Notes showing handwritten math notes on a calm canvas" loading="eager" decoding="async" />
+          </div>
+        </article>
+
+        <!-- Project 04 : Applino -->
+        <article class="project project--flip project--channel" data-layer="box">
+          <div class="project-copy">
+            <div class="project-meta">
+              <span class="mono-label" data-layer="text">Channel / 04</span>
+              <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Live</span>
+            </div>
+            <p class="project-tag" data-layer="text">YouTube · Creator · Team lead</p>
+            <h3 class="project-title" data-layer="heading">Applino</h3>
+            <p class="project-desc" data-layer="text">A full production and growth operation. I led a creative team of five, iterated on content strategy through YouTube Studio analytics, and helped grow two other channels to 100k+ and 10k+.</p>
+            <div class="yt-row">
+              <span class="yt-pill" data-layer="chip"><b data-yt="subs">160k+</b> subscribers</span>
+              <span class="yt-pill" data-layer="chip"><b data-yt="views">13.7M+</b> views</span>
+              <span class="yt-pill" data-layer="chip" data-yt-optional hidden><b data-yt="videos">—</b> videos</span>
+            </div>
+            <a class="link-arrow" href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" data-layer="text">Visit @RealApplino <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="project-visual project-visual--channel" data-layer="media">
+            <img class="channel-avatar" src="realapplino-avatar.jpg" alt="Applino channel avatar" loading="lazy" />
+          </div>
+        </article>
+
+        <!-- Smaller projects -->
+        <div class="mini-grid">
+          <a class="mini-card" href="https://github.com/ktr0a/Finance-app" target="_blank" rel="noopener noreferrer" data-layer="box">
+            <span class="mono-label" data-layer="text">Open source · Python</span>
+            <h3 class="mini-title" data-layer="text" data-clone="mini">Finance Analyzer</h3>
+            <p class="mini-desc" data-layer="text">Parses bank PDF exports, analyzes monthly spending and renders an interactive local dashboard. CLI-first, then a PDF parser and browser charts.</p>
+            <span class="mini-link" data-layer="text">github.com/ktr0a/Finance-app ↗</span>
+          </a>
+          <a class="mini-card" href="https://github.com/ktr0a/TeachFlow-DevFest-AI-Hackathon-2025-" target="_blank" rel="noopener noreferrer" data-layer="box">
+            <span class="mono-label" data-layer="text">Hackathon · GDG DevFest Linz 2025</span>
+            <h3 class="mini-title" data-layer="text" data-clone="mini">TeachFlow</h3>
+            <p class="mini-desc" data-layer="text">An AI grading assistant that gives teachers structured, consistent feedback on student essays. Built in about seven hours.</p>
+            <span class="mini-link" data-layer="text">View on GitHub ↗</span>
+          </a>
+          <a class="mini-card" href="https://qluo.dev" data-layer="box">
+            <span class="mono-label" data-layer="text">This site · Vanilla JS</span>
+            <h3 class="mini-title" data-layer="text" data-clone="mini">qluo.dev</h3>
+            <p class="mini-desc" data-layer="text">Rebuilt live by a swarm of agents on every visit: canvas overlay, DOM typing engine, procedural WebAudio sound and a three.js hero.</p>
+            <span class="mini-link" data-layer="text">You are here ✦</span>
+          </a>
         </div>
 
-        <div class="timeline-item">
-          <div class="timeline-marker">
-            <div class="timeline-dot"></div>
-            <div class="timeline-line"></div>
+        <div class="repos">
+          <div class="repos-head">
+            <p class="eyebrow" data-layer="text">More on GitHub</p>
+            <a class="link-arrow" href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" data-layer="text">github.com/ktr0a <span aria-hidden="true">↗</span></a>
           </div>
-          <div class="timeline-body">
-            <span class="timeline-org">Matura</span>
-            <span class="timeline-role">BG/BRG Schwechat, 2025</span>
-          </div>
-        </div>
-
-        <div class="timeline-item">
-          <div class="timeline-marker">
-            <div class="timeline-dot"></div>
-          </div>
-          <div class="timeline-body">
-            <span class="timeline-org">FabLab Niederösterreich</span>
-            <span class="timeline-role">Maker Space Assistant, Feb–Oct 2024. 3D printing, laser cutting, microcontroller prototyping.</span>
+          <div id="github-grid" class="repo-grid" aria-live="polite">
+            <p class="repo-loading mono-label" data-layer="text" data-type="instant">Fetching repositories…</p>
           </div>
         </div>
-
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ══════════════════════════════ COMPETITIONS ══════════════════════════════ -->
-  <section id="competitions">
-    <div class="section-inner">
-      <header class="section-header">
-        <span class="section-index">03</span>
-        <h2 class="section-heading">Competitions</h2>
-        <div class="section-rule"></div>
-      </header>
-
-      <div class="comp-list">
-
-        <div class="comp-card spotlight">
-          <div class="card-glow" aria-hidden="true"></div>
-          <div class="comp-index" aria-hidden="true">01</div>
-          <div class="comp-body">
-            <h3 class="comp-name">CCC 41st — Cloudflight Coding Contest</h3>
-            <p class="comp-result">School: 13/134 Vienna (top 10%). Classic: 45/184 Vienna, 279/1360 Europe-wide.</p>
-          </div>
+    <!-- ═════════════════════════════════════ ABOUT ═════════════════════════════════════ -->
+    <section id="about" class="section" data-section="about" data-cols="12">
+      <div class="container about-grid">
+        <div class="section-head">
+          <p class="eyebrow" data-layer="text"><span class="idx">[03]</span> About</p>
+          <h2 class="display display-md" data-layer="heading">
+            <span class="display-l1">Precision</span>
+            <span class="display-l2">over guessing.</span>
+          </h2>
+          <p class="section-intro" data-layer="text">I learn by building. When I started at ETH I built myself a study system instead of a to-do list. I like calm interfaces, honest status lights, and products someone would actually use, not scrappy demos.</p>
+          <p class="section-intro" data-layer="text">Before Zürich: civilian service in Vienna, a Matura at BG/BRG Schwechat, and teaching kids and teens 3D printing, laser cutting and microcontrollers at FabLab Niederösterreich.</p>
         </div>
 
-        <div class="comp-card spotlight">
-          <div class="card-glow" aria-hidden="true"></div>
-          <div class="comp-index" aria-hidden="true">02</div>
-          <div class="comp-body">
-            <h3 class="comp-name">Bolyai Mathematics Team</h3>
-            <p class="comp-result">Top 3 in Lower Austria, 3 consecutive years (2023–2025). Top third nationally out of 55–65 teams Austria-wide.</p>
-          </div>
-        </div>
-
-        <div class="comp-card spotlight">
-          <div class="card-glow" aria-hidden="true"></div>
-          <div class="comp-index" aria-hidden="true">03</div>
-          <div class="comp-body">
-            <h3 class="comp-name">Naboj Physics</h3>
-            <p class="comp-result">2nd Lower Austria, 7th Austria (2025)</p>
-          </div>
-        </div>
-
-        <div class="comp-card spotlight">
-          <div class="card-glow" aria-hidden="true"></div>
-          <div class="comp-index" aria-hidden="true">04</div>
-          <div class="comp-body">
-            <h3 class="comp-name">Bonner Mathematikturnier</h3>
-            <p class="comp-result">4th of 19 teams, Vienna/Lower Austria region (2024)</p>
-          </div>
-        </div>
-
+        <ol class="timeline" data-layer="box">
+          <li class="tl-item" data-layer="text" data-clone="timeline">
+            <span class="tl-when">2026 →</span>
+            <span class="tl-what">ETH Zürich</span>
+            <span class="tl-detail">BSc Computer Science</span>
+          </li>
+          <li class="tl-item" data-layer="text" data-clone="timeline">
+            <span class="tl-when">2025–26</span>
+            <span class="tl-what">Zivildienst</span>
+            <span class="tl-detail">Civilian service, Vienna</span>
+          </li>
+          <li class="tl-item" data-layer="text" data-clone="timeline">
+            <span class="tl-when">2025</span>
+            <span class="tl-what">Matura</span>
+            <span class="tl-detail">BG/BRG Schwechat</span>
+          </li>
+          <li class="tl-item" data-layer="text" data-clone="timeline">
+            <span class="tl-when">2024</span>
+            <span class="tl-what">FabLab Niederösterreich</span>
+            <span class="tl-detail">Maker space assistant: 3D printing, laser cutting, microcontroller prototyping</span>
+          </li>
+          <li class="tl-item" data-layer="text" data-clone="timeline">
+            <span class="tl-when">2024 →</span>
+            <span class="tl-what">Applino</span>
+            <span class="tl-detail">YouTube channel, 160k+ subscribers</span>
+          </li>
+        </ol>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ═══════════════════════════════════ SKILLS ═══════════════════════════════════ -->
-  <section id="skills">
-    <div class="section-inner">
-      <header class="section-header">
-        <span class="section-index">04</span>
-        <h2 class="section-heading">Skills</h2>
-        <div class="section-rule"></div>
-      </header>
-
-      <div class="skills-block">
-
-        <div class="skills-row">
-          <span class="skills-label">Proficient</span>
-          <div class="pills">
-            <span class="pill pill-accent">Python</span>
+    <!-- ════════════════════════════════════ RECORD ════════════════════════════════════ -->
+    <section id="record" class="section" data-section="record" data-cols="12">
+      <div class="container">
+        <div class="section-head section-head--split">
+          <div>
+            <p class="eyebrow" data-layer="text"><span class="idx">[04]</span> Track record</p>
+            <h2 class="display display-md" data-layer="heading">
+              <span class="display-l1">Competition</span>
+              <span class="display-l2">sharpens the edges.</span>
+            </h2>
           </div>
+          <p class="section-intro" data-layer="text">Maths, physics and programming contests, mostly as a team. They taught me to stay calm under a clock.</p>
         </div>
 
-        <div class="skills-row">
-          <span class="skills-label">Familiar</span>
-          <div class="pills">
-            <span class="pill">JavaScript</span>
-            <span class="pill">C++</span>
-            <span class="pill">HTML</span>
-            <span class="pill">CSS</span>
-          </div>
-        </div>
-
-        <div class="skills-divider"></div>
-
-        <div class="skills-row">
-          <span class="skills-label">Languages</span>
-          <div class="pills">
-            <span class="pill">German (native)</span>
-            <span class="pill">English (C1)</span>
-            <span class="pill">Chinese (heritage)*</span>
-          </div>
-        </div>
-
-        <p class="skills-footnote">* Native spoken, limited written</p>
-
+        <ol class="record-list">
+          <li class="record" data-layer="box">
+            <span class="record-rank" data-layer="text" data-clone="rank">#13</span>
+            <div class="record-body">
+              <h3 class="record-name" data-layer="text" data-clone="recname">Cloudflight Coding Contest · 41st edition</h3>
+              <p class="record-detail" data-layer="text">School: 13 / 134 in Vienna (top 10%). Classic: 45 / 184 in Vienna, 279 / 1360 Europe-wide.</p>
+            </div>
+            <span class="record-year mono-label" data-layer="text">Coding</span>
+          </li>
+          <li class="record" data-layer="box">
+            <span class="record-rank" data-layer="text" data-clone="rank">Top 3</span>
+            <div class="record-body">
+              <h3 class="record-name" data-layer="text" data-clone="recname">Bolyai Mathematics Team Competition</h3>
+              <p class="record-detail" data-layer="text">Top 3 in Lower Austria three years running (2023–2025); top third nationally among 55–65 teams.</p>
+            </div>
+            <span class="record-year mono-label" data-layer="text">Maths</span>
+          </li>
+          <li class="record" data-layer="box">
+            <span class="record-rank" data-layer="text" data-clone="rank">#2</span>
+            <div class="record-body">
+              <h3 class="record-name" data-layer="text" data-clone="recname">Náboj Physics</h3>
+              <p class="record-detail" data-layer="text">2nd in Lower Austria, 7th in Austria (2025).</p>
+            </div>
+            <span class="record-year mono-label" data-layer="text">Physics</span>
+          </li>
+          <li class="record" data-layer="box">
+            <span class="record-rank" data-layer="text" data-clone="rank">#4</span>
+            <div class="record-body">
+              <h3 class="record-name" data-layer="text" data-clone="recname">Bonner Mathematikturnier</h3>
+              <p class="record-detail" data-layer="text">4th of 19 teams, Vienna and Lower Austria region (2024).</p>
+            </div>
+            <span class="record-year mono-label" data-layer="text">Maths</span>
+          </li>
+        </ol>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ═══════════════════════════════════ CONTACT ═══════════════════════════════════ -->
-  <section id="contact">
-    <div class="contact-aurora" aria-hidden="true"></div>
-    <div class="section-inner contact-inner">
-      <span class="contact-kicker">05 / Contact</span>
-      <h2 class="contact-heading">Open to internships<br />and collaborations.</h2>
-      <a id="email-link" class="contact-email" href="#">—</a>
-      <div class="contact-links">
-        <a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" class="contact-link">github.com/ktr0a <span aria-hidden="true">↗</span></a>
-        <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" class="contact-link">youtube.com/@RealApplino <span aria-hidden="true">↗</span></a>
+    <!-- ════════════════════════════════════ STACK ════════════════════════════════════ -->
+    <section id="stack" class="section" data-section="stack" data-cols="12">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow" data-layer="text"><span class="idx">[05]</span> Stack</p>
+          <h2 class="display display-md" data-layer="heading">
+            <span class="display-l1">Tools I reach for</span>
+            <span class="display-l2">when it has to work.</span>
+          </h2>
+        </div>
+
+        <div class="stack-grid">
+          <div class="stack-group" data-layer="box">
+            <h3 class="stack-label" data-layer="text" data-clone="stacklabel">Languages</h3>
+            <ul class="chips">
+              <li class="chip chip-strong" data-layer="chip">Python</li>
+              <li class="chip" data-layer="chip">TypeScript</li>
+              <li class="chip" data-layer="chip">Kotlin</li>
+              <li class="chip" data-layer="chip">Java</li>
+              <li class="chip" data-layer="chip">JavaScript</li>
+              <li class="chip" data-layer="chip">C++</li>
+              <li class="chip" data-layer="chip">Bash</li>
+              <li class="chip" data-layer="chip">PowerShell</li>
+            </ul>
+          </div>
+          <div class="stack-group" data-layer="box">
+            <h3 class="stack-label" data-layer="text" data-clone="stacklabel">Frameworks</h3>
+            <ul class="chips">
+              <li class="chip" data-layer="chip">React</li>
+              <li class="chip" data-layer="chip">Jetpack Compose</li>
+              <li class="chip" data-layer="chip">Node</li>
+              <li class="chip" data-layer="chip">Vite</li>
+              <li class="chip" data-layer="chip">esbuild</li>
+              <li class="chip" data-layer="chip">Vitest</li>
+              <li class="chip" data-layer="chip">Playwright</li>
+            </ul>
+          </div>
+          <div class="stack-group" data-layer="box">
+            <h3 class="stack-label" data-layer="text" data-clone="stacklabel">AI &amp; agents</h3>
+            <ul class="chips">
+              <li class="chip chip-strong" data-layer="chip">Claude Code</li>
+              <li class="chip" data-layer="chip">Claude API · tool use</li>
+              <li class="chip" data-layer="chip">Multi-session orchestration</li>
+              <li class="chip" data-layer="chip">Hooks &amp; schedules</li>
+            </ul>
+          </div>
+          <div class="stack-group" data-layer="box">
+            <h3 class="stack-label" data-layer="text" data-clone="stacklabel">Infra</h3>
+            <ul class="chips">
+              <li class="chip" data-layer="chip">GCP Compute Engine</li>
+              <li class="chip" data-layer="chip">systemd</li>
+              <li class="chip" data-layer="chip">tmux</li>
+              <li class="chip" data-layer="chip">rclone</li>
+              <li class="chip" data-layer="chip">WSL2</li>
+              <li class="chip" data-layer="chip">Git</li>
+              <li class="chip" data-layer="chip">Vercel</li>
+            </ul>
+          </div>
+          <div class="stack-group" data-layer="box">
+            <h3 class="stack-label" data-layer="text" data-clone="stacklabel">Spoken</h3>
+            <ul class="chips">
+              <li class="chip" data-layer="chip">German · native</li>
+              <li class="chip" data-layer="chip">Chinese · native</li>
+              <li class="chip" data-layer="chip">English · C1</li>
+            </ul>
+          </div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ═══════════════════════════════════ FOOTER ═══════════════════════════════════ -->
-  <footer id="footer">
-    <div class="footer-inner">
-      <span class="footer-wordmark">ktr0a<span class="nav-wordmark-dot">.</span></span>
-      <span class="footer-copy">qluo.dev</span>
+    <!-- ═══════════════════════════════════ CONTACT ═══════════════════════════════════ -->
+    <section id="contact" class="section section--contact" data-section="contact" data-cols="12">
+      <div class="container">
+        <div class="contact-frame" data-layer="box">
+          <div class="contact-copy">
+            <p class="eyebrow" data-layer="text"><span class="idx">[06]</span> Contact</p>
+            <h2 class="display display-md" data-layer="heading">
+              <span class="display-l1">Have a hard problem</span>
+              <span class="display-l2">worth building?</span>
+            </h2>
+            <p class="section-intro" data-layer="text">Open to internships, collaborations and good conversations about agents, tooling or growing an audience.</p>
+          </div>
+          <div class="contact-actions">
+            <a class="email-box" data-email href="#" data-layer="button">
+              <span class="email-box-label mono-label">Start a conversation</span>
+              <span class="email-box-value" data-email-text>email loading…</span>
+              <span class="email-box-arrow" aria-hidden="true">→</span>
+            </a>
+            <div class="contact-links">
+              <a class="link-arrow" href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" data-layer="text" data-clone="clinks">Follow on GitHub <span aria-hidden="true">↗</span></a>
+              <a class="link-arrow" href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" data-layer="text" data-clone="clinks">Watch on YouTube <span aria-hidden="true">↗</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ════════════════════════════════════ FOOTER ════════════════════════════════════ -->
+  <footer class="footer" data-section="footer" data-cols="12">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#hero" class="brand" aria-label="ktr0a, back to top">
+            <span class="brand-mark" data-layer="icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="22" height="22"><rect x="1" y="1" width="30" height="30" rx="8" fill="currentColor"/><path d="M11 8.5v14.2l3.6-3.4 2.5 5.6 2.6-1.2-2.5-5.5 4.9-.3z" fill="#08080a"/></svg>
+            </span>
+            <span class="brand-word" data-layer="text">ktr0a<span class="brand-dim">.dev</span></span>
+          </a>
+          <p class="footer-blurb" data-layer="text">Computer Science at ETH Zürich. Agent systems, study tools, Android apps and videos.</p>
+        </div>
+        <div class="footer-col">
+          <h3 class="footer-h" data-layer="text" data-clone="fhead">Work</h3>
+          <ul>
+            <li><a href="#work" data-layer="text" data-clone="fwork">Uni OS</a></li>
+            <li><a href="#work" data-layer="text" data-clone="fwork">Uni Cockpit</a></li>
+            <li><a href="#work" data-layer="text" data-clone="fwork">Quiet Notes</a></li>
+            <li><a href="#work" data-layer="text" data-clone="fwork">Applino</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h3 class="footer-h" data-layer="text" data-clone="fhead">Elsewhere</h3>
+          <ul>
+            <li><a href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" data-layer="text" data-clone="felse">GitHub · ktr0a</a></li>
+            <li><a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" data-layer="text" data-clone="felse">YouTube · @RealApplino</a></li>
+          </ul>
+        </div>
+        <div class="footer-col footer-contact">
+          <h3 class="footer-h" data-layer="text" data-clone="fhead">Contact</h3>
+          <ul>
+            <li><a data-email href="#" data-layer="text"><span data-email-text>email</span></a></li>
+          </ul>
+        </div>
+      </div>
+      <hr class="footer-rule" data-layer="rule" />
+      <div class="footer-bottom">
+        <p class="mono-label" data-layer="text">© 2026 Qiang Luo · ktr0a</p>
+        <p class="mono-label" data-layer="text">Rebuilt live by agents · qluo.dev</p>
+      </div>
     </div>
   </footer>
-
-  <!-- Scripts: Lenis → GSAP → ScrollTrigger → site JS  -->
-  <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script src="script.js"></script>
 
 </body>
 </html>

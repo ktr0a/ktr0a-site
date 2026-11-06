@@ -1,0 +1,367 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   build.css: styles for the "rebuilt live by agents" engine (SPEC §4, §5)
+
+   Only active while JS runs the build: every rule is scoped to classes the
+   engine adds (html.build-pending, .is-built, .build-*) or elements it creates
+   (#build-canvas, .build-hud, .build-logo). With JS off or animations off none
+   of this applies and the page is plain, visible content.
+
+   Stacking: page content < fixed nav < #build-canvas (9000) < .build-hud (9010).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ───────────────────────────── hidden state ───────────────────────────── */
+
+/* Layers are invisible until built. visibility (not display/opacity) keeps the
+   layout intact and lets a built/building child override a hidden parent. */
+html.build-pending [data-layer]:not(.is-built) { visibility: hidden; }
+html.build-pending [data-layer].is-built,
+html.build-pending [data-layer].is-building { visibility: visible; }
+
+/* Mini-build of late content (GitHub cards) after the main build finished */
+html.build-mini [data-layer].build-new:not(.is-built):not(.is-building) { visibility: hidden; }
+
+/* ───────────────────────────── canvas ───────────────────────────── */
+
+#build-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9000;
+  pointer-events: none;
+  display: block;
+}
+
+/* ───────────────────────────── typing ───────────────────────────── */
+
+/* Not-yet-typed characters keep their layout but are invisible */
+.build-rest { visibility: hidden !important; }
+
+/* Blinking insertion caret: zero width so it never shifts text */
+.build-caret {
+  position: relative;
+  display: inline;
+  pointer-events: none;
+}
+.build-caret::after {
+  content: "";
+  position: absolute;
+  left: 0.5px;
+  bottom: -0.12em;
+  width: 1.5px;
+  height: 1.12em;
+  border-radius: 1px;
+  background: #8fb0ff;
+  box-shadow: 0 0 6px rgba(61, 123, 255, 0.9);
+  animation: build-caret 0.9s steps(1, end) infinite;
+}
+@keyframes build-caret { 50% { opacity: 0; } }
+
+/* Word selection (select → retype) and whole-layer "select all" (clone-then-edit) */
+.build-sel {
+  background: #3d7bff99;
+  color: #fff;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px rgba(61, 123, 255, 0.35);
+}
+.build-sel.is-retyping { background: transparent; box-shadow: none; }
+
+.build-selall,
+.build-selall * {
+  background-color: #3d7bff99 !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+}
+
+/* ───────────────────────────── reveal effects ───────────────────────────── */
+/* Individual transform properties (translate/scale) so the site's own transforms
+   are never clobbered while an effect runs. */
+
+.build-fx-fade { animation: build-fade 0.42s ease-out both; }
+@keyframes build-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.build-fx-pop { animation: build-pop 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+@keyframes build-pop {
+  from { opacity: 0; scale: 0.8; }
+  to { opacity: 1; scale: 1; }
+}
+
+.build-fx-wipe { animation: build-wipe 0.32s cubic-bezier(0.6, 0, 0.2, 1) both; }
+@keyframes build-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+/* Slice displacement + RGB split */
+.build-fx-glitch { animation: build-glitch 0.38s steps(1, end) both; }
+@keyframes build-glitch {
+  0% { clip-path: inset(12% 0 58% 0); translate: -8px 0; filter: drop-shadow(3px 0 0 rgba(255, 40, 80, 0.75)) drop-shadow(-3px 0 0 rgba(40, 200, 255, 0.75)); }
+  14% { clip-path: inset(46% 0 18% 0); translate: 6px 0; }
+  28% { clip-path: inset(0 0 72% 0); translate: -4px 0; filter: drop-shadow(-4px 0 0 rgba(255, 40, 80, 0.7)) drop-shadow(4px 0 0 rgba(40, 200, 255, 0.7)); }
+  42% { clip-path: inset(64% 0 4% 0); translate: 5px 0; }
+  56% { clip-path: inset(22% 0 36% 0); translate: -3px 0; }
+  70% { clip-path: inset(0 0 0 0); translate: 2px 0; filter: drop-shadow(2px 0 0 rgba(255, 40, 80, 0.5)) drop-shadow(-2px 0 0 rgba(40, 200, 255, 0.5)); }
+  84% { clip-path: inset(0 0 0 0); translate: -1px 0; }
+  100% { clip-path: none; translate: none; filter: none; }
+}
+
+/* Paste flash on clone targets */
+.build-fx-paste { animation: build-paste 0.46s ease-out both; }
+@keyframes build-paste {
+  from { background-color: rgba(61, 123, 255, 0.32); }
+  to { background-color: transparent; }
+}
+
+/* Skip: a 150 ms global jolt (the canvas adds RGB slices on top) */
+html.build-flash body > header,
+html.build-flash body > main,
+html.build-flash body > footer { animation: build-flash 0.15s steps(1, end); }
+@keyframes build-flash {
+  0% { translate: -6px 0; filter: hue-rotate(40deg) saturate(1.6); }
+  33% { translate: 5px 0; }
+  66% { translate: -2px 0; filter: none; }
+  100% { translate: none; }
+}
+
+/* Fast tour scrolling (> ~700 px/s, director.js): a brief chromatic ghost trailing the content
+   (below it, since the page moves up). Strong on headings and media, lighter on body text. */
+html.build-smear main :is(h1, h2, h3, .stat-value, .record-rank) {
+  text-shadow: 0 8px 0 rgba(61, 123, 255, 0.36), 0 15px 0 rgba(255, 59, 59, 0.2);
+}
+html.build-smear main :is(p, li, .chip, .mono-label) { text-shadow: 0 5px 0 rgba(61, 123, 255, 0.26); }
+html.build-smear main :is(.project-visual img, .hero3d) {
+  filter: drop-shadow(0 8px 0 rgba(61, 123, 255, 0.32)) drop-shadow(0 -6px 0 rgba(255, 59, 59, 0.22));
+}
+
+/* ───────────────────────────── boot logo ───────────────────────────── */
+
+.build-logo {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 8990;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #e7e9ee, #c9cdd5);
+  color: #0d0e11;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 28px rgba(200, 210, 230, 0.12);
+  pointer-events: none;
+  animation: build-logo-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
+  transition: scale 0.35s cubic-bezier(0.6, 0, 0.8, 0.4), opacity 0.3s ease-in;
+}
+.build-logo.is-out { scale: 0.4; opacity: 0; }
+@keyframes build-logo-in {
+  from { scale: 0.6; opacity: 0; }
+  to { scale: 1; opacity: 1; }
+}
+
+/* ───────────────────────────── HUD ───────────────────────────── */
+
+.build-hud {
+  --bh-line: rgba(255, 255, 255, 0.14);
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 9010;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  max-width: calc(100vw - 24px);
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--bh-line);
+  border-radius: 12px;
+  background: rgba(14, 15, 18, 0.82);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  color: #c9ced8;
+  font: 500 11px/1 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  translate: -50% 0;
+  transition: translate 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.35s ease;
+  /* backwards (not both): once in, .is-hidden must be able to override translate/opacity */
+  animation: build-hud-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+/* visibility (delayed until the slide-out is over) also takes the hidden pill out of the
+   accessibility tree; hud.js additionally sets `inert` */
+.build-hud.is-hidden {
+  translate: -50% calc(100% + 40px);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: translate 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.35s ease, visibility 0s linear 0.45s;
+}
+@keyframes build-hud-in {
+  from { translate: -50% 24px; opacity: 0; }
+  to { translate: -50% 0; opacity: 1; }
+}
+
+.build-hud b { color: #f3f4f6; font-weight: 600; }
+/* Counters keep a fixed width while they count up (19 → 44 agents, 1 → 226 layers), so the
+   centred pill never shifts its buttons under the cursor. */
+.bh-agents b { display: inline-block; min-width: 2ch; text-align: right; }
+.bh-layers b { display: inline-block; min-width: 3ch; text-align: right; }
+.bh-layers [data-ref="total"] { display: inline-block; min-width: 3ch; }
+
+.bh-info { display: flex; align-items: center; min-width: 0; }
+.bh-scan,
+.bh-live,
+.bh-done { display: none; }
+.bh-live { align-items: center; gap: 8px; }
+.build-hud[data-state="boot"] .bh-scan,
+.build-hud[data-state="done"] .bh-done { display: inline; }
+.build-hud[data-state="build"] .bh-live { display: inline-flex; }
+.bh-mid { display: none; }
+
+.bh-ell { display: inline-block; animation: build-ell 1.2s ease-in-out infinite; }
+@keyframes build-ell { 50% { opacity: 0.3; } }
+
+/* five overlapping agent avatars */
+.bh-dots { display: inline-flex; padding-left: 4px; }
+.bh-dots i {
+  width: 10px;
+  height: 10px;
+  margin-left: -4px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(14, 15, 18, 0.95);
+  box-sizing: content-box;
+}
+.bh-sep { width: 1px; height: 12px; background: var(--bh-line); }
+
+/* progress / scanning line */
+.bh-track {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.bh-track i {
+  position: absolute;
+  inset: 0;
+  background: #3d7bff;
+  box-shadow: 0 0 8px rgba(61, 123, 255, 0.8);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.25s linear;
+}
+.build-hud[data-state="boot"] .bh-track i {
+  transform: none;
+  width: 40%;
+  animation: build-scan 1.1s ease-in-out infinite;
+}
+@keyframes build-scan {
+  from { translate: -110% 0; }
+  to { translate: 260% 0; }
+}
+
+.bh-actions { display: flex; align-items: center; gap: 4px; }
+.bh-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  min-width: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #c9ced8;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.bh-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.bh-btn:focus-visible { outline: 1.5px solid #6c9bff; outline-offset: 1px; }
+.bh-icon { padding: 0 6px; }
+
+.build-hud:not([data-state="done"]) .bh-tour,
+.build-hud:not([data-state="done"]) .bh-speed,
+.build-hud:not([data-state="done"]) .bh-sound,
+.build-hud[data-state="done"] .bh-golive,
+.build-hud[data-state="done"] .bh-replay,
+.bh-close { display: inline-flex; }
+
+.bh-tour[aria-pressed="true"] { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.bh-tour[aria-pressed="false"] { color: #7d8492; }
+.bh-sound[data-on="false"] { color: #7d8492; }
+
+.bh-primary { background: #3d7bff; color: #fff; box-shadow: 0 0 16px rgba(61, 123, 255, 0.45); }
+.bh-primary:hover { background: #5a8fff; }
+
+/* "sound" hint pulse until the browser allows audio. It floats above the button (out of the
+   flow), so showing/removing it never changes the pill's width. Narrow screens get a dot. */
+.bh-sound { position: relative; }
+.bh-hint {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  translate: -50% 0;
+  padding: 3px 6px;
+  border: 1px solid rgba(108, 155, 255, 0.45);
+  border-radius: 6px;
+  background: rgba(14, 15, 18, 0.92);
+  font-size: 10px;
+  line-height: 1;
+  color: #8fb0ff;
+  pointer-events: none;
+}
+.bh-sound.is-hint .bh-hint { display: block; animation: build-hint 1.6s ease-in-out infinite; }
+@keyframes build-hint { 50% { opacity: 0.35; } }
+
+.build-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* compact HUD: fits a 360 px screen */
+@media (max-width: 520px) {
+  .build-hud { gap: 7px; padding-left: 10px; font-size: 10.5px; }
+  .build-hud .bh-word,
+  .bh-hint { display: none !important; }
+  /* no room for the floating "sound" tag: a pulsing dot on the speaker instead */
+  .bh-sound.is-hint::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #6c9bff;
+    box-shadow: 0 0 6px rgba(61, 123, 255, 0.9);
+    animation: build-hint 1.6s ease-in-out infinite;
+  }
+  .bh-mid { display: inline; }
+  .bh-dots i:nth-child(n + 4) { display: none; }
+  .bh-of { margin: 0 1px; }
+  .bh-track { width: 26px; }
+  .bh-btn { padding: 0 6px; }
+}
+
+/* While the HUD pill is up it floats over the page bottom: give the footer room so its last
+   line ("Rebuilt live by agents · qluo.dev") stays readable. */
+body:has(> .build-hud) .footer { transition: padding-bottom 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+body:has(> .build-hud:not(.is-hidden)) .footer { padding-bottom: 64px; }
+
+@media print {
+  #build-canvas,
+  .build-hud,
+  .build-logo { display: none !important; }
+}
