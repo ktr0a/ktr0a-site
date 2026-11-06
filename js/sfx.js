@@ -2,8 +2,8 @@
  * sfx.js: procedural WebAudio sound engine (no audio files).
  *
  * Contract (SPEC section 6):
- *   sfx.init()                        idempotent; installs the first-gesture unlock
- *   sfx.unlocked / sfx.enabled        read-only state
+ *   sfx.init()                        idempotent; tries to start audio at once, installs the first-gesture unlock
+ *   sfx.unlocked / sfx.enabled / sfx.blocked   read-only state
  *   sfx.setEnabled(bool), sfx.toggle({ feedback }), sfx.onChange(cb) -> unsubscribe
  *   sfx.play(name, { x = 0.5, pitch = 0, gain = 1 })
  *   sfx.bed.start() / .setProgress(p) / .stop()
@@ -21,10 +21,18 @@
  *     per-name cooldowns (jittered for the "dense" sounds so the rhythm never locks into a buzz),
  *     per-name concurrency caps, a global cap of MAX_VOICES (steals the lowest-priority, oldest voice),
  *     rate-adaptive attenuation for dense sounds, and per-hit pitch/filter/level randomisation.
- *   - Robustness: never throws; unknown names are ignored; no WebAudio -> silent no-op; the AudioContext
- *     is created lazily inside the first user gesture; nothing is scheduled while the context is not
- *     running (so no queued burst on resume); suspended while disabled or while the tab is hidden;
- *     nodes are disconnected when a voice ends; noise / impulse buffers are generated once per context.
+ *   - Robustness: never throws; unknown names are ignored; no WebAudio -> silent no-op; nothing is
+ *     scheduled while the context is not running (so no queued burst on resume); suspended while
+ *     disabled or while the tab is hidden; nodes are disconnected when a voice ends; noise / impulse
+ *     buffers are generated once per context.
+ *   - Autoplay: init() creates the AudioContext at once and asks it to run, so sound starts on the
+ *     first beat wherever the browser allows audio without a gesture (Chrome desktop: high Media
+ *     Engagement, a same-origin navigation after an interaction, enterprise policy; Firefox / Safari:
+ *     the site's autoplay permission set to allow). navigator.getAutoplayPolicy('audiocontext') is
+ *     asked first where it exists (Firefox), so a context that would be refused is not even created
+ *     (no console warning). Otherwise the context waits, suspended, for the earliest activation-
+ *     granting event (pointerdown / mousedown / keydown / touchend / click, capture phase).
+ *     `blocked` is true only while audio is known to be refused (it drives the "sound" hint).
  */
 
 const STORE_KEY = 'ktr0a:sound'; // 'on' | 'off' (missing = on)
@@ -36,6 +44,9 @@ const LOOKAHEAD = 0.012; // s; lets attack ramps land on time in real-time sched
 const BED_LEVEL = 0.1;
 const GESTURE_GRACE_MS = 650;
 const RESUME_HOLD = 0.04; // s the gate stays shut after the context resumes
+// How long the boot attempt waits for the context to report 'running' before calling audio blocked.
+// Chrome answers synchronously; the slack covers engines that start the device asynchronously.
+const PROBE_MS = 300;
 
 const noop = () => {};
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -1028,12 +1039,13 @@ const hasDOM = typeof window !== 'undefined' && typeof document !== 'undefined';
 const AC = hasDOM ? (window.AudioContext || window.webkitAudioContext || null) : null;
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-let rt = null; // real-time Engine, created lazily inside a user gesture
+let rt = null; // real-time Engine: created at init (bootAttempt) or, where that is refused up front, in the first gesture
 let inited = false;
 let enabled = readPref();
 let unlocked = false;
+let refused = false; // the boot attempt found audio blocked until a user gesture
 let unlockGestureAt = -Infinity; // time of the gesture that first tried to unlock audio
-let suspendTimer = 0, hideTimer = 0;
+let suspendTimer = 0, hideTimer = 0, probeTimer = 0;
 const subs = new Set();
 const bedWant = { on: false, p: 0 };
 // One sound requested while the context is resuming (e.g. 'toggleOn' right after setEnabled(true), or the
@@ -1051,8 +1063,10 @@ function writePref() {
   try { localStorage.setItem(STORE_KEY, enabled ? 'on' : 'off'); } catch { /* storage blocked */ }
 }
 
+const isBlocked = () => enabled && !unlocked && refused;
+
 function emit() {
-  const s = { enabled, unlocked };
+  const s = { enabled, unlocked, blocked: isBlocked() };
   for (const cb of subs) {
     try { cb(s); } catch (e) { (globalThis.reportError || console.error)(e); }
   }
@@ -1101,6 +1115,7 @@ function resumeCtx() {
 
 function onCtxState() {
   if (!rt || rt.ctx.state !== 'running') return;
+  clearTimeout(probeTimer);
   if (!unlocked) { unlocked = true; emit(); }
   // Smooth fade-in after (re)start. The gate opens RESUME_HOLD late: whatever was frozen in the
   // graph at suspend (e.g. a reverb tail) plays out silently instead of as a stale blip.
@@ -1132,22 +1147,69 @@ function onGesture(e) {
 
 function onVisibility() {
   try {
-    if (!rt) return;
+    if (!rt) {
+      bootAttempt(); // a page opened in a background tab tries once it is first shown
+      return;
+    }
     clearTimeout(hideTimer);
     if (isHidden()) {
       rt.fade(0, 0, 0.01);
       hideTimer = setTimeout(() => {
         if (rt && isHidden() && rt.ctx.state === 'running') suspendCtx();
       }, 80);
-    } else if (enabled && unlocked) {
+    } else if (enabled && (unlocked || activationOK())) {
       resumeCtx(); // gate fades back in once running (onCtxState)
     }
   } catch { /* ignore */ }
 }
 
+/** Harmless retry when the window regains focus (e.g. an iOS context left "interrupted"). */
+function onFocus() {
+  try {
+    if (!enabled || !rt || rt.ctx.state === 'running' || isHidden() || !activationOK()) return;
+    resumeCtx();
+  } catch { /* ignore */ }
+}
+
+/** The browser's verdict for Web Audio where it can be asked up front (Firefox 112+); null = unknown. */
+function autoplayPolicy() {
+  try {
+    if (!hasDOM || typeof navigator.getAutoplayPolicy !== 'function') return null;
+    return navigator.getAutoplayPolicy('audiocontext');
+  } catch { return null; }
+}
+
+function markRefused() {
+  if (refused || unlocked) return;
+  refused = true;
+  emit();
+}
+
+/**
+ * Sound as early as possible: create the context now and ask it to run. Where the browser allows
+ * audio without a gesture it is 'running' at once (Chrome reports it synchronously) and sound plays
+ * from the first beat. Otherwise it stays suspended until onGesture() resumes it, and `blocked`
+ * turns true (the "sound" hint). A policy answer of "disallowed" skips creating a context that would
+ * only be refused (and logged); the first gesture creates it instead. Hidden tabs wait until shown.
+ */
+function bootAttempt() {
+  try {
+    if (!enabled || !AC || rt || unlocked || isHidden()) return;
+    const policy = autoplayPolicy();
+    if (policy && policy !== 'allowed') { markRefused(); return; }
+    if (!ensureEngine()) { markUnlocked(); return; } // WebAudio unusable: nothing to wait for
+    resumeCtx();
+    if (rt.ctx.state === 'running') return;
+    clearTimeout(probeTimer);
+    probeTimer = setTimeout(() => {
+      if (rt && rt.ctx.state !== 'running') markRefused();
+    }, PROBE_MS);
+  } catch { /* never throw */ }
+}
+
 function syncBed() {
   try {
-    if (!rt || !bedWant.on || rt.bed || !enabled || rt.ctx.state !== 'running') return;
+    if (!rt || !bedWant.on || rt.bed || !enabled || isHidden() || rt.ctx.state !== 'running') return;
     rt.bedStart(bedWant.p, rt.ctx.currentTime + LOOKAHEAD);
   } catch { /* ignore */ }
 }
@@ -1156,12 +1218,17 @@ function init() {
   if (inited || !hasDOM) return;
   inited = true;
   const opts = { capture: true, passive: true };
-  for (const type of ['pointerdown', 'pointerup', 'keydown', 'touchstart', 'touchend', 'click']) {
-    window.addEventListener(type, onGesture, opts); // kept installed: also recovers iOS "interrupted" contexts
+  // The activation-granting events (HTML "activation triggering input events": keydown other than
+  // Esc, mousedown, pointerdown for mice, pointerup / touchend for touch and pen) plus click as a
+  // late safety net. Kept installed: they also recover iOS "interrupted" contexts.
+  for (const type of ['pointerdown', 'mousedown', 'pointerup', 'keydown', 'touchend', 'click']) {
+    window.addEventListener(type, onGesture, opts);
   }
   document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('focus', onFocus);
   // already activated earlier (e.g. module loaded late): unlock without waiting for another gesture
   if (navigator.userActivation && navigator.userActivation.hasBeenActive) onGesture(null);
+  bootAttempt();
 }
 
 function setEnabled(value) {
@@ -1174,6 +1241,8 @@ function setEnabled(value) {
     if (v) {
       if (unlocked || activationOK()) {
         if (ensureEngine()) resumeCtx(); else markUnlocked();
+      } else {
+        bootAttempt(); // enabled without a gesture: try, and report `blocked` if refused
       }
     } else if (rt) {
       // short delay so a 'toggleOff' played right before this call is still heard, then fade + suspend
@@ -1196,8 +1265,10 @@ function setEnabled(value) {
 
 export const sfx = {
   init,
-  /** true once a user gesture has allowed audio (or happened while sound was disabled). */
+  /** true once audio is allowed: the context runs (with or without a gesture), or a gesture happened while sound was disabled. */
   get unlocked() { return unlocked; },
+  /** true only while sound is on but the browser is known to refuse audio until a gesture (show the hint). */
+  get blocked() { return isBlocked(); },
   get enabled() { return enabled; },
   /** false when the browser has no WebAudio at all (everything stays a silent no-op). */
   get supported() { return !!AC; },
@@ -1223,7 +1294,7 @@ export const sfx = {
     if (feedback && v) sfx.play('toggleOn');
     return v;
   },
-  /** cb({ enabled, unlocked }) on every change; returns an unsubscribe function. */
+  /** cb({ enabled, unlocked, blocked }) on every change; returns an unsubscribe function. */
   onChange(cb) {
     if (typeof cb !== 'function') return noop;
     subs.add(cb);

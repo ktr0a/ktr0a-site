@@ -6,7 +6,13 @@
    (#build-canvas, .build-hud, .build-logo). With JS off or animations off none
    of this applies and the page is plain, visible content.
 
-   Stacking: page content < fixed nav < #build-canvas (9000) < .build-hud (9010).
+   Stacking: page content < fixed nav < #build-canvas (9000) < .build-hud (9010)
+             < .build-settings (9020, the gear popover: usable mid-build).
+
+   Glass: the HUD and the settings popover carry style.css' shared `.glass` utility
+   (fill, edge highlight, backdrop blur, shadow). This file only gives them layout,
+   radius and type. Until style.css defines the glass tokens, JS adds `.no-glass`
+   and the plain fallback surface below is used instead.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ───────────────────────────── hidden state ───────────────────────────── */
@@ -172,12 +178,7 @@ html.build-smear main :is(.project-visual img, .hero3d) {
   height: 34px;
   max-width: calc(100vw - 24px);
   padding: 0 4px 0 12px;
-  border: 1px solid var(--bh-line);
   border-radius: 12px;
-  background: rgba(14, 15, 18, 0.82);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  backdrop-filter: blur(14px) saturate(1.4);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   color: #c9ced8;
   font: 500 11px/1 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.01em;
@@ -199,6 +200,16 @@ html.build-smear main :is(.project-visual img, .hero3d) {
 @keyframes build-hud-in {
   from { translate: -50% 24px; opacity: 0; }
   to { translate: -50% 0; opacity: 1; }
+}
+
+/* Fallback material, only while style.css has no glass tokens yet (hud.js / settings.js add .no-glass) */
+.build-hud.no-glass,
+.build-settings.no-glass {
+  border: 1px solid var(--glass-stroke, rgba(255, 255, 255, 0.14));
+  background: var(--glass-fill, rgba(14, 15, 18, 0.86));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.4);
+  box-shadow: var(--glass-shadow, 0 12px 40px rgba(0, 0, 0, 0.45)), inset 0 1px 0 var(--glass-highlight, rgba(255, 255, 255, 0.05));
 }
 
 .build-hud b { color: #f3f4f6; font-weight: 600; }
@@ -276,7 +287,7 @@ html.build-smear main :is(.project-visual img, .hero3d) {
   background: rgba(255, 255, 255, 0.06);
   color: #c9ced8;
   font: inherit;
-  cursor: pointer;
+  cursor: var(--cur-link, pointer);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 .bh-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
@@ -355,6 +366,113 @@ html.build-smear main :is(.project-visual img, .hero3d) {
   .bh-btn { padding: 0 6px; }
 }
 
+/* ───────────────────────────── build settings (gear popover) ───────────────────────────── */
+/* settings.js places it under the nav gear (left/top) and clamps it to the viewport. */
+
+.build-settings {
+  position: fixed;
+  top: 72px;
+  left: 16px;
+  z-index: 9020;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  color: #c9ced8;
+  font: 400 13px/1.4 var(--font-body, "Inter", system-ui, sans-serif);
+  text-align: left;
+  animation: bs-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.build-settings:focus { outline: none; }
+.anim-off .build-settings { animation: none; }
+@keyframes bs-in {
+  from { opacity: 0; translate: 0 -6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+.bs-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text, #f3f4f6);
+}
+.bs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+}
+.bs-label { color: var(--text-2, #9aa1ad); }
+
+/* Speed: segmented control (role=radiogroup, roving tabindex) */
+.bs-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.bs-opt {
+  min-width: 42px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2, #9aa1ad);
+  font: 500 12px/1 var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  cursor: var(--cur-link, pointer);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.bs-opt:hover { color: var(--text, #f3f4f6); }
+.bs-opt[aria-checked="true"] {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Autoscroll: switch (role=switch); the hit area is larger than the track */
+.bs-switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: var(--cur-link, pointer);
+  transition: background-color 0.18s ease;
+}
+.bs-switch::before { content: ""; position: absolute; inset: -9px -6px; }
+.bs-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #c9ced8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: translate 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.18s ease;
+}
+.bs-switch[aria-checked="true"] { background: var(--blue, #3d7bff); }
+.bs-switch[aria-checked="true"] .bs-knob { translate: 16px 0; background: #fff; }
+
+.bs-opt:focus-visible,
+.bs-switch:focus-visible { outline: 2px solid var(--blue-2, #6c9bff); outline-offset: 2px; }
+
+.bs-note {
+  margin: 8px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted, #8a91a0);
+}
+
 /* While the HUD pill is up it floats over the page bottom: give the footer room so its last
    line ("Rebuilt live by agents · qluo.dev") stays readable. */
 body:has(> .build-hud) .footer { transition: padding-bottom 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
@@ -363,5 +481,6 @@ body:has(> .build-hud:not(.is-hidden)) .footer { padding-bottom: 64px; }
 @media print {
   #build-canvas,
   .build-hud,
+  .build-settings,
   .build-logo { display: none !important; }
 }

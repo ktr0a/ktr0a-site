@@ -18,13 +18,26 @@ const ICON_SOUND_OFF =
   '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
 
 /**
+ * True when style.css provides the shared glass material (the `--glass-fill` token on :root).
+ * Until it does, `no-glass` tells css/build.css to paint a plain fallback surface instead.
+ */
+export function hasGlass() {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue("--glass-fill").trim() !== "";
+  } catch {
+    return true;
+  }
+}
+
+/**
  * @param {object} o
  * @param {string[]} o.palette  agent colours for the avatar dots
  * @param {(action: string) => void} o.onAction  'tour' | 'speed' | 'sound' | 'skip' | 'golive' | 'replay' | 'close'
  */
 export function createHud({ palette = [], onAction = () => {} } = {}) {
   const el = document.createElement("div");
-  el.className = "build-hud";
+  // The material (fill, edge, blur, shadow) comes from style.css' shared .glass utility.
+  el.className = hasGlass() ? "build-hud glass" : "build-hud glass no-glass";
   el.dataset.state = "boot";
   el.setAttribute("role", "region");
   el.setAttribute("aria-label", "Live page build");
@@ -136,7 +149,8 @@ export function createHud({ palette = [], onAction = () => {} } = {}) {
       b.setAttribute("aria-label", `Build speed ${n}x`);
     },
 
-    setSound({ enabled, unlocked }) {
+    /** blocked: the browser is known to refuse audio until a gesture (sfx.blocked); falls back to !unlocked. */
+    setSound({ enabled, unlocked, blocked }) {
       const on = !!enabled;
       if (soundBtn.dataset.on !== String(on)) {
         soundBtn.dataset.on = String(on);
@@ -144,10 +158,12 @@ export function createHud({ palette = [], onAction = () => {} } = {}) {
         soundBtn.setAttribute("aria-pressed", String(on));
         soundBtn.firstElementChild.outerHTML = on ? ICON_SOUND_ON : ICON_SOUND_OFF;
       }
-      // Pulse a small hint until the browser lets audio play (first gesture). It floats above
-      // the button (css/build.css), so removing it never changes the pill's width: a first
-      // click whose pointerdown unlocks audio still lands on the button it was aimed at.
-      soundBtn.classList.toggle("is-hint", on && !unlocked);
+      // Pulse a small hint only while the browser actually blocks audio (it plays without any
+      // gesture where allowed). It floats above the button (css/build.css), so removing it never
+      // changes the pill's width: a first click whose pointerdown unlocks audio still lands on
+      // the button it was aimed at.
+      const refused = blocked === undefined ? !unlocked : !!blocked;
+      soundBtn.classList.toggle("is-hint", on && refused);
     },
 
     show() {

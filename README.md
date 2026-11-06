@@ -15,14 +15,16 @@ from a small Vercel function.
 | Path | What |
 |---|---|
 | `index.html` | Content, annotated for the build (`data-layer`, `data-clone`, `data-section`, `data-qa`) |
-| `style.css` | Site styles |
-| `css/build.css` | Build overlay, logo and HUD styles |
-| `js/main.js` | Boot, toggles, Lenis smooth scroll, anchors, cursor, wiring |
+| `style.css` | Site styles, including the liquid-glass material (`.glass`, `--glass-*` tokens) for floating chrome |
+| `css/build.css` | Build overlay, logo, HUD and settings-panel styles |
+| `js/main.js` | Boot, toggles, first/return-visit logic, Lenis smooth scroll, anchors, wiring |
+| `js/settings.js` | Settings gear and popover (speed and autoscroll on return visits) |
+| `js/cursor.js` | Native CSS cursor (the agents' arrow) plus the trailing "you" tag |
 | `js/data.js` | Email, GitHub repos, YouTube stats |
 | `js/build/` | The build engine: `director` (planning and timeline), `agents`, `overlay` (canvas drawing), `typer`, `hud` |
 | `js/sfx.js` | Procedural WebAudio sound effects and the ambient bed |
 | `js/hero3d.js` | three.js hero object (bloom, environment lighting), with a CSS fallback |
-| `assets/` | Favicon, OG image, project visuals (animated SVGs; `#still` freezes them) |
+| `assets/` | Favicon, OG image, project screenshots (`assets/shots/`) |
 | `api/youtube.js` | Vercel function: channel statistics (needs `YT_API_KEY`) |
 
 ## Run locally
@@ -35,9 +37,21 @@ python -m http.server 4173
 The YouTube function only runs on Vercel (`vercel dev` on port 3000 also works); elsewhere the stats keep
 their static fallback values.
 
+## Behaviour
+
+- **First visit:** the full build at 1x with the camera tour on.
+- **Return visits:** 2x with the tour off by default; visitors can change both in the settings gear
+  (`ktr0a:returnSpeed`, `ktr0a:returnTour`).
+- **Rebuild** (nav), **Replay** (HUD) and **R** always play the full build at 1x with the tour on.
+- **Sound** is on by default and starts as soon as the browser allows: immediately where autoplay is
+  permitted, otherwise on the first click, tap or key press anywhere on the page.
+- **Cursor:** on mouse and trackpad devices the arrow is a native CSS cursor (no lag); only the small "you"
+  tag is moved by script and trails slightly. High-contrast (forced-colors) mode keeps the system cursor.
+
 ## Controls
 
 - **Esc** skips the build, **R** replays it, **M** toggles sound, **T** toggles the camera tour.
-- The nav has sound and animation toggles plus a **Rebuild** button. Animations stay on regardless of the
-  OS reduced-motion setting; the toggle turns them off (saved in `localStorage` as `ktr0a:anim`).
+- The nav has sound and animation toggles, the settings gear and a **Rebuild** button. Animations stay on
+  regardless of the OS reduced-motion setting; the toggle turns them off (saved in `localStorage` as
+  `ktr0a:anim`).
 - Without JavaScript, or with animations off, the page renders immediately as plain content.

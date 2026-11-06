@@ -17,13 +17,13 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Qiang Luo (ktr0a): systems, agents &amp; software</title>
-  <meta name="description" content="Qiang Luo (ktr0a): Computer Science student at ETH Zürich. I build multi-agent systems, study tools and apps with Claude Code, and run Applino, a 160k+ subscriber YouTube channel." />
+  <meta name="description" content="Qiang Luo (ktr0a): Computer Science student at ETH Zürich. I build the tools I need and couldn't find: a multi-agent study system, an Obsidian cockpit and a handwriting app. Previously grew Applino, a 160k+ subscriber YouTube channel." />
   <meta name="theme-color" content="#08080a" />
   <link rel="canonical" href="https://qluo.dev/" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://qluo.dev/" />
   <meta property="og:title" content="Qiang Luo (ktr0a)" />
-  <meta property="og:description" content="CS @ ETH Zürich. Multi-agent systems, study tools, Android apps, and a 160k+ YouTube channel. This site rebuilds itself live, by agents, on every visit." />
+  <meta property="og:description" content="CS student at ETH Zürich. Multi-agent systems, study tools and Android apps. This site rebuilds itself live, by agents, on every visit." />
   <meta property="og:image" content="https://qluo.dev/assets/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -32,9 +32,15 @@
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
 
+  <!-- Schibsted Grotesk for everything you read; JetBrains Mono only for data (dates, ranks, numbers) and the build HUD. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script>
+    /* Liquid-glass refraction (style.css, #glass-lens below) needs SVG filters inside backdrop-filter,
+       which only Chromium renders. Everyone else keeps the blur-only glass. */
+    if (navigator.userAgentData && window.CSS && CSS.supports("backdrop-filter", "url(#a)")) document.documentElement.classList.add("glass-lens");
+  </script>
 
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="css/build.css" />
@@ -58,6 +64,8 @@
   <link rel="modulepreload" href="js/build/typer.js" />
   <link rel="modulepreload" href="js/build/hud.js" />
   <link rel="modulepreload" href="js/hero3d.js" />
+  <link rel="modulepreload" href="js/settings.js" />
+  <link rel="modulepreload" href="js/cursor.js" />
   <!-- If the entry module (or a static import of it) fails to load, reveal the page at once
        instead of waiting for the 6 s fail-safe. -->
   <script type="module" src="js/main.js" onerror="document.documentElement.classList.remove('build-pending');clearTimeout(window.__buildFailSafe)"></script>
@@ -68,9 +76,29 @@
 
   <a class="skip-link" href="#main">Skip to content</a>
 
+  <!-- Liquid-glass lens, used by .glass in Chromium (html.glass-lens). The displacement map is
+       derived from the element's own box inside the filter (flood → blurred edge → gradient), so one
+       filter fits the nav bar, the HUD and any panel at any size. Interior stays undistorted. -->
+  <svg class="glass-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <filter id="glass-lens" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feFlood flood-color="#fff" result="fill" />
+      <feGaussianBlur in="fill" stdDeviation="5" result="edge" />
+      <feColorMatrix in="edge" type="matrix" values="0 0 0 -1 1  0 0 0 -1 1  0 0 0 -1 1  0 0 0 0 1" result="rim" />
+      <feConvolveMatrix in="rim" order="9 1" kernelMatrix="-1 0 0 0 0 0 0 0 1" divisor="0.55" bias="0.5" preserveAlpha="true" edgeMode="duplicate" result="gx" />
+      <feConvolveMatrix in="rim" order="1 9" kernelMatrix="-1 0 0 0 0 0 0 0 1" divisor="0.55" bias="0.5" preserveAlpha="true" edgeMode="duplicate" result="gy" />
+      <feColorMatrix in="gx" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mx" />
+      <feColorMatrix in="gy" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 0 1" result="my" />
+      <feComposite in="mx" in2="my" operator="arithmetic" k2="1" k3="1" result="map" />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="frost" />
+      <feDisplacementMap in="frost" in2="map" scale="34" xChannelSelector="R" yChannelSelector="G" result="bent" />
+      <feColorMatrix in="bent" type="saturate" values="1.7" />
+    </filter>
+  </svg>
+
   <!-- ═════════════════════════════════════ NAV ═════════════════════════════════════ -->
   <header id="nav" class="nav" data-section="nav">
     <div class="container nav-inner">
+     <div class="nav-bar glass" data-layer="box">
       <a href="#hero" class="brand" aria-label="ktr0a, back to top">
         <span class="brand-mark" data-layer="icon" aria-hidden="true">
           <svg viewBox="0 0 32 32" width="22" height="22"><rect x="1" y="1" width="30" height="30" rx="8" fill="currentColor"/><path d="M11 8.5v14.2l3.6-3.4 2.5 5.6 2.6-1.2-2.5-5.5 4.9-.3z" fill="#08080a"/></svg>
@@ -101,6 +129,7 @@
         </button>
         <a class="btn btn-light btn-sm nav-gh" href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" data-layer="button">GitHub <span aria-hidden="true">↗</span></a>
       </div>
+     </div>
     </div>
   </header>
 
@@ -110,12 +139,11 @@
     <section id="hero" class="hero" data-section="hero" data-cols="12">
       <div class="container hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow" data-layer="text" data-qa><span class="dot dot-green" aria-hidden="true"></span>CS student · ETH Zürich <span class="eyebrow-sep">/</span> Vienna → Zürich</p>
           <h1 class="display" data-layer="heading">
             <span class="display-l1">I build systems</span>
             <span class="display-l2">that run themselves.</span>
           </h1>
-          <p class="lead" data-layer="text">I’m Qiang Luo, known online as ktr0a. I study Computer Science at ETH Zürich, design multi-agent setups, study tools and Android apps with Claude Code, and run <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer">Applino</a>, a YouTube channel with 160k+ subscribers.</p>
+          <p class="lead" data-layer="text">I’m Qiang Luo, known online as ktr0a. I study Computer Science at ETH Zürich and build the tools I need when they don’t exist yet: a multi-agent study system that lives in Obsidian, and a handwriting app for my tablet. I also grew <a href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer">Applino</a>, a YouTube channel, to 160k+ subscribers.</p>
           <div class="hero-ctas">
             <a href="#work" class="btn btn-light" data-layer="button">See the work</a>
             <a href="#contact" class="btn btn-ghost" data-layer="button">Start a conversation</a>
@@ -125,60 +153,57 @@
         <div class="hero-visual" data-layer="media" aria-hidden="true">
           <div class="hero3d" id="hero3d"><div class="hero3d-fallback"></div></div>
         </div>
-      </div>
 
-      <div class="container">
-        <dl class="stats" data-layer="box">
-          <div class="stat" data-layer="text" data-clone="stats">
-            <dt class="stat-label">Subscribers</dt>
-            <dd class="stat-value" data-yt="subs">160k+</dd>
-          </div>
-          <div class="stat" data-layer="text" data-clone="stats">
-            <dt class="stat-label">Video views</dt>
-            <dd class="stat-value" data-yt="views">13.7M+</dd>
-          </div>
-          <div class="stat" data-layer="text" data-clone="stats">
-            <dt class="stat-label">Always-on agents</dt>
-            <dd class="stat-value">06</dd>
-          </div>
-          <div class="stat" data-layer="text" data-clone="stats">
-            <dt class="stat-label">ETH CS, since</dt>
-            <dd class="stat-value">2026</dd>
-          </div>
-        </dl>
+        <!-- Facts readout: floats over the sculpture (glass over moving content). -->
+        <aside class="hero-now glass" data-layer="box" aria-label="Facts">
+          <p class="now-where" data-layer="text" data-qa><span class="dot dot-green" aria-hidden="true"></span>CS student · ETH Zürich <span class="now-sep">/</span> Vienna → Zürich</p>
+          <dl class="now-list">
+            <div class="now-row" data-layer="text" data-clone="stats">
+              <dt>ETH CS, since</dt>
+              <dd>2026</dd>
+            </div>
+            <div class="now-row" data-layer="text" data-clone="stats">
+              <dt>Always-on agents</dt>
+              <dd>6</dd>
+            </div>
+            <div class="now-row" data-layer="text" data-clone="stats">
+              <dt>Subscribers</dt>
+              <dd data-yt="subs">160k+</dd>
+            </div>
+            <div class="now-row" data-layer="text" data-clone="stats">
+              <dt>Video views</dt>
+              <dd data-yt="views">13.7M+</dd>
+            </div>
+          </dl>
+        </aside>
       </div>
     </section>
 
     <!-- ═══════════════════════════════════ WHAT I DO ═══════════════════════════════════ -->
     <section id="focus" class="section" data-section="focus" data-cols="12">
-      <div class="container">
+      <div class="container focus-layout">
         <div class="section-head">
-          <p class="eyebrow" data-layer="text"><span class="idx">[01]</span> What I do</p>
           <h2 class="display display-md" data-layer="heading">
-            <span class="display-l1">Depth over</span>
-            <span class="display-l2">decoration.</span>
+            <span class="display-l1">What I work on</span>
           </h2>
-          <p class="section-intro" data-layer="text">I like problems with moving parts: systems that have to keep working when nobody is watching, tools that remove friction from a day, and stories that have to land with real people.</p>
+          <p class="section-intro" data-layer="text">Mostly problems with moving parts: systems that keep working when nobody is watching, and tools that take friction out of my day.</p>
         </div>
 
-        <div class="focus-grid">
+        <div class="focus-list">
           <article class="focus-item" data-layer="box">
             <hr class="focus-rule" data-layer="rule" />
-            <p class="mono-tag" data-layer="text">01 / Agents</p>
             <h3 class="focus-title" data-layer="text" data-clone="focus">Agent systems</h3>
-            <p class="focus-text" data-layer="text">Multi-session Claude Code setups with a coordinator, role agents, handovers, schedules and guardrails. They run around the clock on a cloud VM I manage myself.</p>
+            <p class="focus-text" data-layer="text">Multi-session agent setups with a coordinator, role agents, handovers, schedules and guardrails. They run around the clock on a cloud VM I manage myself.</p>
           </article>
           <article class="focus-item" data-layer="box">
             <hr class="focus-rule" data-layer="rule" />
-            <p class="mono-tag" data-layer="text">02 / Product</p>
             <h3 class="focus-title" data-layer="text" data-clone="focus">Product engineering</h3>
-            <p class="focus-text" data-layer="text">TypeScript, Kotlin and Python tools that get used every day: an Obsidian study cockpit, a handwriting app for my tablet, a personal finance analyzer.</p>
+            <p class="focus-text" data-layer="text">TypeScript, Kotlin and Python tools I use every day: an Obsidian study cockpit, a handwriting app for my tablet and a personal finance analyzer.</p>
           </article>
           <article class="focus-item" data-layer="box">
             <hr class="focus-rule" data-layer="rule" />
-            <p class="mono-tag" data-layer="text">03 / Audience</p>
             <h3 class="focus-title" data-layer="text" data-clone="focus">Content &amp; growth</h3>
-            <p class="focus-text" data-layer="text">Applino: 160k+ subscribers and 13.7M+ views. I led a creative team of five, steered strategy with YouTube analytics, and helped grow two more channels.</p>
+            <p class="focus-text" data-layer="text">Applino, 2024 to 2026. I led a creative team of five, steered strategy with YouTube analytics, and helped grow two more channels.</p>
           </article>
         </div>
       </div>
@@ -189,29 +214,27 @@
       <div class="container">
         <div class="section-head section-head--split">
           <div>
-            <p class="eyebrow" data-layer="text"><span class="idx">[02]</span> Selected work</p>
             <h2 class="display display-md" data-layer="heading">
-              <span class="display-l1">Things I built</span>
-              <span class="display-l2">and actually use.</span>
+              <span class="display-l1">Tools I built</span>
+              <span class="display-l2">because I needed them.</span>
             </h2>
           </div>
-          <p class="section-intro" data-layer="text">Most of it was built in autumn 2026 with Claude Code as my pair. I design the architecture, set the constraints and review every change.</p>
+          <p class="section-intro" data-layer="text">Most of this started after the beginning of my bachelor’s, when I kept needing tools and systems for my studies that didn’t exist yet. When I have an idea for one, I build it.</p>
         </div>
 
-        <!-- Project 01 -->
+        <!-- Uni OS -->
         <article class="project" data-layer="box">
           <div class="project-copy">
             <div class="project-meta">
-              <span class="mono-label" data-layer="text">Project / 01</span>
+              <p class="project-tag" data-layer="text" data-qa>Multi-agent study system</p>
               <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Live</span>
             </div>
-            <p class="project-tag" data-layer="text" data-qa>Multi-agent study system</p>
             <h3 class="project-title" data-layer="heading">Uni OS</h3>
             <p class="project-desc" data-layer="text">The operating system of my first ETH semester. An Obsidian vault of about 690 notes, run by a team of Claude Code sessions: a coordinator plus role agents for planning, tracking and per-course exercise help. They hand work to each other through notes, a single sync job applies every change, an hourly git history records it, and strict academic-integrity rules mean hints only.</p>
             <ul class="project-parts">
               <li data-layer="text" data-clone="parts"><b>uni-vm</b> · 24/7 Google Cloud VM: six self-resuming agent sessions, ~15 scheduled jobs, budgeted phone pushes</li>
               <li data-layer="text" data-clone="parts"><b>Quick View</b> · phone page with today, week and courses, live from Calendar and Drive in ~1.1 s</li>
-              <li data-layer="text" data-clone="parts"><b>System dashboard</b> · a live SVG map of the whole system that never shows green for what it can’t see</li>
+              <li data-layer="text" data-clone="parts"><b>System dashboard</b> · a live SVG map of every part of the system and its health</li>
             </ul>
             <ul class="chips" aria-label="Tech">
               <li class="chip" data-layer="chip">Claude Code</li>
@@ -221,68 +244,61 @@
               <li class="chip" data-layer="chip">Bash</li>
               <li class="chip" data-layer="chip">Obsidian</li>
             </ul>
-            <p class="project-note mono-label" data-layer="text">Private repo · walkthrough on request</p>
+            <p class="project-note" data-layer="text">Not public yet. I plan to release the structure as a set of Markdown files you can hand to any DIY agent setup to build your own.</p>
           </div>
-          <div class="project-visual" data-layer="media">
-            <img src="assets/visuals/uni-os.svg" alt="Diagram of Uni OS: a coordinator agent connected to role agents, the vault, a sync job and the cloud VM" loading="eager" decoding="async" />
+          <div class="project-visual" style="--frame: 1600 / 1102" data-layer="media">
+            <img src="assets/shots/uni-os-map.webp" width="1600" height="1102" alt="The Uni OS system dashboard: a map of every part of the system around the Google Drive vault, with laptop parts, VM jobs, agent roles and cloud sessions, each with a live status dot" loading="eager" decoding="async" />
+          </div>
+
+          <!-- Uni Cockpit: part of Uni OS (brings it into Obsidian) -->
+          <div class="project-sub" id="uni-cockpit" data-layer="box">
+            <div class="project-sub-copy">
+              <p class="project-tag" data-layer="text">Part of Uni OS · Obsidian plugin · TypeScript</p>
+              <h4 class="project-sub-title" data-layer="heading">Uni Cockpit</h4>
+              <p class="project-desc" data-layer="text">Brings Uni OS into Obsidian, so the whole system runs where my notes already are. The plugin reads the vault live and turns it into a study dashboard with Focus, Dashboard and Agenda layouts and its own iCal parser (recurring, moved and cancelled events, time zones). An optional Claude side panel picks Haiku or Sonnet per question and shows tokens and cost for every answer.</p>
+              <ul class="chips" aria-label="Tech">
+                <li class="chip" data-layer="chip">TypeScript</li>
+                <li class="chip" data-layer="chip">esbuild</li>
+                <li class="chip" data-layer="chip">Obsidian API</li>
+                <li class="chip" data-layer="chip">Anthropic SDK</li>
+                <li class="chip" data-layer="chip">iCal</li>
+              </ul>
+            </div>
+            <div class="project-visual project-visual--sub" data-layer="media">
+              <img src="assets/shots/uni-cockpit-focus.webp" width="1600" height="1200" alt="Uni Cockpit's Focus layout in Obsidian: the current study block, upcoming deadlines with countdowns, a day strip with a now line and today's prep notes" loading="eager" decoding="async" />
+            </div>
           </div>
         </article>
 
-        <!-- Project 02 -->
+        <!-- Quiet Notes -->
         <article class="project project--flip" data-layer="box">
           <div class="project-copy">
             <div class="project-meta">
-              <span class="mono-label" data-layer="text">Project / 02</span>
-              <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Daily driver</span>
-            </div>
-            <p class="project-tag" data-layer="text">Obsidian plugin · TypeScript</p>
-            <h3 class="project-title" data-layer="heading">Uni Cockpit</h3>
-            <p class="project-desc" data-layer="text">A calm study dashboard that reads my vault live. It has its own iCal parser (recurring, moved and cancelled events, time zones), Focus, Dashboard and Agenda layouts, and an optional Claude side panel that picks Haiku or Sonnet per question and shows tokens and cost for every answer. API keys stay in Obsidian’s keychain; tests run against frozen copies of real notes.</p>
-            <ul class="chips" aria-label="Tech">
-              <li class="chip" data-layer="chip">TypeScript</li>
-              <li class="chip" data-layer="chip">esbuild</li>
-              <li class="chip" data-layer="chip">Obsidian API</li>
-              <li class="chip" data-layer="chip">Anthropic SDK</li>
-              <li class="chip" data-layer="chip">iCal</li>
-            </ul>
-            <p class="project-note mono-label" data-layer="text">Private repo · walkthrough on request</p>
-          </div>
-          <div class="project-visual" data-layer="media">
-            <img src="assets/visuals/cockpit.svg" alt="Mock-up of the Uni Cockpit dashboard with today's agenda, course cards and a Claude side panel" loading="eager" decoding="async" />
-          </div>
-        </article>
-
-        <!-- Project 03 -->
-        <article class="project" data-layer="box">
-          <div class="project-copy">
-            <div class="project-meta">
-              <span class="mono-label" data-layer="text">Project / 03</span>
+              <p class="project-tag" data-layer="text" data-qa>Android · Kotlin</p>
               <span class="status status-beta" data-layer="chip"><span class="dot dot-amber" aria-hidden="true"></span>V6</span>
             </div>
-            <p class="project-tag" data-layer="text" data-qa>Android · Kotlin</p>
             <h3 class="project-title" data-layer="heading">Quiet Notes</h3>
-            <p class="project-desc" data-layer="text">A distraction-free handwriting app for my 13″ tablet: low-latency ink, strokes stored as vectors, atomic saves and a versioned file format with migrations. One on-canvas button, PDF annotation and export, lasso and scribble-to-erase. Notebooks sync into the right course folders on Drive.</p>
+            <p class="project-desc" data-layer="text">A distraction-free handwriting app for my 13″ tablet: low-latency ink, strokes stored as vectors, atomic saves and a versioned file format with migrations. One on-canvas button, PDF annotation and export, lasso and scribble-to-erase. Notebooks can sync straight into course folders on Google Drive.</p>
             <ul class="chips" aria-label="Tech">
               <li class="chip" data-layer="chip">Kotlin</li>
               <li class="chip" data-layer="chip">Jetpack Compose</li>
               <li class="chip" data-layer="chip">androidx.ink</li>
               <li class="chip" data-layer="chip">PdfBox</li>
             </ul>
-            <p class="project-note mono-label" data-layer="text">Private repo · walkthrough on request</p>
+            <p class="project-note" data-layer="text">A personal app for now. I haven’t decided yet whether to open-source it.</p>
           </div>
           <div class="project-visual" data-layer="media">
-            <img src="assets/visuals/quiet-notes.svg" alt="Tablet mock-up of Quiet Notes showing handwritten math notes on a calm canvas" loading="eager" decoding="async" />
+            <img src="assets/shots/quiet-notes-menu.webp" width="1400" height="1050" alt="Quiet Notes with its single on-canvas button opened: Pen, Lasso, Insert image, Insert page, Pages, Notebook settings, Export PDF and Library" loading="eager" decoding="async" />
           </div>
         </article>
 
-        <!-- Project 04 : Applino -->
-        <article class="project project--flip project--channel" data-layer="box">
+        <!-- Applino -->
+        <article class="project project--channel" data-layer="box">
           <div class="project-copy">
             <div class="project-meta">
-              <span class="mono-label" data-layer="text">Channel / 04</span>
-              <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Live</span>
+              <p class="project-tag" data-layer="text">YouTube · Creator · Team lead</p>
+              <span class="status status-past" data-layer="chip"><span class="dot dot-grey" aria-hidden="true"></span>2024–2026</span>
             </div>
-            <p class="project-tag" data-layer="text">YouTube · Creator · Team lead</p>
             <h3 class="project-title" data-layer="heading">Applino</h3>
             <p class="project-desc" data-layer="text">A full production and growth operation. I led a creative team of five, iterated on content strategy through YouTube Studio analytics, and helped grow two other channels to 100k+ and 10k+.</p>
             <div class="yt-row">
@@ -291,37 +307,38 @@
               <span class="yt-pill" data-layer="chip" data-yt-optional hidden><b data-yt="videos">—</b> videos</span>
             </div>
             <a class="link-arrow" href="https://www.youtube.com/@RealApplino" target="_blank" rel="noopener noreferrer" data-layer="text">Visit @RealApplino <span aria-hidden="true">↗</span></a>
+            <p class="project-note" data-layer="text">I no longer make videos. The numbers are lifetime totals.</p>
           </div>
           <div class="project-visual project-visual--channel" data-layer="media">
             <img class="channel-avatar" src="realapplino-avatar.jpg" alt="Applino channel avatar" loading="lazy" />
           </div>
         </article>
 
-        <!-- Smaller projects -->
-        <div class="mini-grid">
-          <a class="mini-card" href="https://github.com/ktr0a/Finance-app" target="_blank" rel="noopener noreferrer" data-layer="box">
-            <span class="mono-label" data-layer="text">Open source · Python</span>
+        <!-- Smaller projects: one row each -->
+        <div class="mini-list">
+          <a class="mini-row" href="https://github.com/ktr0a/Finance-app" target="_blank" rel="noopener noreferrer" data-layer="box">
             <h3 class="mini-title" data-layer="text" data-clone="mini">Finance Analyzer</h3>
+            <span class="mini-kind" data-layer="text">Open source · Python</span>
             <p class="mini-desc" data-layer="text">Parses bank PDF exports, analyzes monthly spending and renders an interactive local dashboard. CLI-first, then a PDF parser and browser charts.</p>
             <span class="mini-link" data-layer="text">github.com/ktr0a/Finance-app ↗</span>
           </a>
-          <a class="mini-card" href="https://github.com/ktr0a/TeachFlow-DevFest-AI-Hackathon-2025-" target="_blank" rel="noopener noreferrer" data-layer="box">
-            <span class="mono-label" data-layer="text">Hackathon · GDG DevFest Linz 2025</span>
+          <a class="mini-row" href="https://github.com/ktr0a/TeachFlow-DevFest-AI-Hackathon-2025-" target="_blank" rel="noopener noreferrer" data-layer="box">
             <h3 class="mini-title" data-layer="text" data-clone="mini">TeachFlow</h3>
+            <span class="mini-kind" data-layer="text">Hackathon · GDG DevFest Linz 2025</span>
             <p class="mini-desc" data-layer="text">An AI grading assistant that gives teachers structured, consistent feedback on student essays. Built in about seven hours.</p>
             <span class="mini-link" data-layer="text">View on GitHub ↗</span>
           </a>
-          <a class="mini-card" href="https://qluo.dev" data-layer="box">
-            <span class="mono-label" data-layer="text">This site · Vanilla JS</span>
+          <a class="mini-row" href="https://qluo.dev" data-layer="box">
             <h3 class="mini-title" data-layer="text" data-clone="mini">qluo.dev</h3>
+            <span class="mini-kind" data-layer="text">This site · Vanilla JS</span>
             <p class="mini-desc" data-layer="text">Rebuilt live by a swarm of agents on every visit: canvas overlay, DOM typing engine, procedural WebAudio sound and a three.js hero.</p>
-            <span class="mini-link" data-layer="text">You are here ✦</span>
+            <span class="mini-link" data-layer="text">You are here</span>
           </a>
         </div>
 
         <div class="repos">
           <div class="repos-head">
-            <p class="eyebrow" data-layer="text">More on GitHub</p>
+            <h3 class="repos-title" data-layer="text">More on GitHub</h3>
             <a class="link-arrow" href="https://github.com/ktr0a" target="_blank" rel="noopener noreferrer" data-layer="text">github.com/ktr0a <span aria-hidden="true">↗</span></a>
           </div>
           <div id="github-grid" class="repo-grid" aria-live="polite">
@@ -335,16 +352,20 @@
     <section id="about" class="section" data-section="about" data-cols="12">
       <div class="container about-grid">
         <div class="section-head">
-          <p class="eyebrow" data-layer="text"><span class="idx">[03]</span> About</p>
           <h2 class="display display-md" data-layer="heading">
             <span class="display-l1">Precision</span>
             <span class="display-l2">over guessing.</span>
           </h2>
-          <p class="section-intro" data-layer="text">I learn by building. When I started at ETH I built myself a study system instead of a to-do list. I like calm interfaces, honest status lights, and products someone would actually use, not scrappy demos.</p>
-          <p class="section-intro" data-layer="text">Before Zürich: civilian service in Vienna, a Matura at BG/BRG Schwechat, and teaching kids and teens 3D printing, laser cutting and microcontrollers at FabLab Niederösterreich.</p>
+          <p class="section-intro" data-layer="text">I learn by building. When I started at ETH I built myself a study system instead of a to-do list. I like calm interfaces, honest status lights and tools that hold up in daily use.</p>
+          <p class="section-intro" data-layer="text">Before Zürich: civilian service in Vienna, a Matura at BG/BRG Schwechat (I skipped 6th grade along the way), and teaching kids and teens 3D printing, laser cutting and microcontrollers at FabLab Niederösterreich.</p>
         </div>
 
         <ol class="timeline" data-layer="box">
+          <li class="tl-item" data-layer="text" data-clone="timeline">
+            <span class="tl-when">Oct 2026</span>
+            <span class="tl-what">VIScon Hackathon</span>
+            <span class="tl-detail">Three-day hackathon at ETH, run by VIS, the CS student association</span>
+          </li>
           <li class="tl-item" data-layer="text" data-clone="timeline">
             <span class="tl-when">2026 →</span>
             <span class="tl-what">ETH Zürich</span>
@@ -358,7 +379,7 @@
           <li class="tl-item" data-layer="text" data-clone="timeline">
             <span class="tl-when">2025</span>
             <span class="tl-what">Matura</span>
-            <span class="tl-detail">BG/BRG Schwechat</span>
+            <span class="tl-detail">BG/BRG Schwechat, after skipping 6th grade</span>
           </li>
           <li class="tl-item" data-layer="text" data-clone="timeline">
             <span class="tl-when">2024</span>
@@ -366,7 +387,7 @@
             <span class="tl-detail">Maker space assistant: 3D printing, laser cutting, microcontroller prototyping</span>
           </li>
           <li class="tl-item" data-layer="text" data-clone="timeline">
-            <span class="tl-when">2024 →</span>
+            <span class="tl-when">2024–26</span>
             <span class="tl-what">Applino</span>
             <span class="tl-detail">YouTube channel, 160k+ subscribers</span>
           </li>
@@ -379,13 +400,11 @@
       <div class="container">
         <div class="section-head section-head--split">
           <div>
-            <p class="eyebrow" data-layer="text"><span class="idx">[04]</span> Track record</p>
             <h2 class="display display-md" data-layer="heading">
-              <span class="display-l1">Competition</span>
-              <span class="display-l2">sharpens the edges.</span>
+              <span class="display-l1">Contests</span>
             </h2>
           </div>
-          <p class="section-intro" data-layer="text">Maths, physics and programming contests, mostly as a team. They taught me to stay calm under a clock.</p>
+          <p class="section-intro" data-layer="text">Maths, physics and programming contests from my school years, mostly in teams.</p>
         </div>
 
         <ol class="record-list">
@@ -393,17 +412,17 @@
             <span class="record-rank" data-layer="text" data-clone="rank">#13</span>
             <div class="record-body">
               <h3 class="record-name" data-layer="text" data-clone="recname">Cloudflight Coding Contest · 41st edition</h3>
-              <p class="record-detail" data-layer="text">School: 13 / 134 in Vienna (top 10%). Classic: 45 / 184 in Vienna, 279 / 1360 Europe-wide.</p>
+              <p class="record-detail" data-layer="text">School category: 13th of 134 teams, top 10% (2025).</p>
             </div>
-            <span class="record-year mono-label" data-layer="text">Coding</span>
+            <span class="record-kind" data-layer="text">Coding</span>
           </li>
           <li class="record" data-layer="box">
-            <span class="record-rank" data-layer="text" data-clone="rank">Top 3</span>
+            <span class="record-rank" data-layer="text" data-clone="rank">#1</span>
             <div class="record-body">
               <h3 class="record-name" data-layer="text" data-clone="recname">Bolyai Mathematics Team Competition</h3>
-              <p class="record-detail" data-layer="text">Top 3 in Lower Austria three years running (2023–2025); top third nationally among 55–65 teams.</p>
+              <p class="record-detail" data-layer="text">1st in Lower Austria in 2025 after two 2nd places; top third nationally.</p>
             </div>
-            <span class="record-year mono-label" data-layer="text">Maths</span>
+            <span class="record-kind" data-layer="text">Maths</span>
           </li>
           <li class="record" data-layer="box">
             <span class="record-rank" data-layer="text" data-clone="rank">#2</span>
@@ -411,15 +430,15 @@
               <h3 class="record-name" data-layer="text" data-clone="recname">Náboj Physics</h3>
               <p class="record-detail" data-layer="text">2nd in Lower Austria, 7th in Austria (2025).</p>
             </div>
-            <span class="record-year mono-label" data-layer="text">Physics</span>
+            <span class="record-kind" data-layer="text">Physics</span>
           </li>
           <li class="record" data-layer="box">
             <span class="record-rank" data-layer="text" data-clone="rank">#4</span>
             <div class="record-body">
               <h3 class="record-name" data-layer="text" data-clone="recname">Bonner Mathematikturnier</h3>
-              <p class="record-detail" data-layer="text">4th of 19 teams, Vienna and Lower Austria region (2024).</p>
+              <p class="record-detail" data-layer="text">Vienna and Lower Austria round (2024).</p>
             </div>
-            <span class="record-year mono-label" data-layer="text">Maths</span>
+            <span class="record-kind" data-layer="text">Maths</span>
           </li>
         </ol>
       </div>
@@ -429,10 +448,8 @@
     <section id="stack" class="section" data-section="stack" data-cols="12">
       <div class="container">
         <div class="section-head">
-          <p class="eyebrow" data-layer="text"><span class="idx">[05]</span> Stack</p>
           <h2 class="display display-md" data-layer="heading">
-            <span class="display-l1">Tools I reach for</span>
-            <span class="display-l2">when it has to work.</span>
+            <span class="display-l1">Languages and tools</span>
           </h2>
         </div>
 
@@ -440,12 +457,12 @@
           <div class="stack-group" data-layer="box">
             <h3 class="stack-label" data-layer="text" data-clone="stacklabel">Languages</h3>
             <ul class="chips">
-              <li class="chip chip-strong" data-layer="chip">Python</li>
+              <li class="chip chip-strong" data-layer="chip">Python <span class="chip-level">intermediate</span></li>
+              <li class="chip chip-strong" data-layer="chip">Java <span class="chip-level">intermediate</span></li>
               <li class="chip" data-layer="chip">TypeScript</li>
               <li class="chip" data-layer="chip">Kotlin</li>
-              <li class="chip" data-layer="chip">Java</li>
               <li class="chip" data-layer="chip">JavaScript</li>
-              <li class="chip" data-layer="chip">C++</li>
+              <li class="chip" data-layer="chip">C++ <span class="chip-level">basics</span></li>
               <li class="chip" data-layer="chip">Bash</li>
               <li class="chip" data-layer="chip">PowerShell</li>
             </ul>
@@ -487,7 +504,7 @@
             <h3 class="stack-label" data-layer="text" data-clone="stacklabel">Spoken</h3>
             <ul class="chips">
               <li class="chip" data-layer="chip">German · native</li>
-              <li class="chip" data-layer="chip">Chinese · native</li>
+              <li class="chip" data-layer="chip">Chinese · fluent (heritage)</li>
               <li class="chip" data-layer="chip">English · C1</li>
             </ul>
           </div>
@@ -500,16 +517,14 @@
       <div class="container">
         <div class="contact-frame" data-layer="box">
           <div class="contact-copy">
-            <p class="eyebrow" data-layer="text"><span class="idx">[06]</span> Contact</p>
             <h2 class="display display-md" data-layer="heading">
-              <span class="display-l1">Have a hard problem</span>
-              <span class="display-l2">worth building?</span>
+              <span class="display-l1">Get in touch</span>
             </h2>
-            <p class="section-intro" data-layer="text">Open to internships, collaborations and good conversations about agents, tooling or growing an audience.</p>
+            <p class="section-intro" data-layer="text">Open to internships, collaborations and conversations about agent systems and tooling.</p>
           </div>
           <div class="contact-actions">
             <a class="email-box" data-email href="#" data-layer="button">
-              <span class="email-box-label mono-label">Start a conversation</span>
+              <span class="email-box-label">Start a conversation</span>
               <span class="email-box-value" data-email-text>email loading…</span>
               <span class="email-box-arrow" aria-hidden="true">→</span>
             </a>
@@ -535,13 +550,13 @@
             </span>
             <span class="brand-word" data-layer="text">ktr0a<span class="brand-dim">.dev</span></span>
           </a>
-          <p class="footer-blurb" data-layer="text">Computer Science at ETH Zürich. Agent systems, study tools, Android apps and videos.</p>
+          <p class="footer-blurb" data-layer="text">Computer Science at ETH Zürich. Agent systems, study tools and Android apps.</p>
         </div>
         <div class="footer-col">
           <h3 class="footer-h" data-layer="text" data-clone="fhead">Work</h3>
           <ul>
             <li><a href="#work" data-layer="text" data-clone="fwork">Uni OS</a></li>
-            <li><a href="#work" data-layer="text" data-clone="fwork">Uni Cockpit</a></li>
+            <li><a href="#uni-cockpit" data-layer="text" data-clone="fwork">Uni Cockpit</a></li>
             <li><a href="#work" data-layer="text" data-clone="fwork">Quiet Notes</a></li>
             <li><a href="#work" data-layer="text" data-clone="fwork">Applino</a></li>
           </ul>
@@ -562,8 +577,8 @@
       </div>
       <hr class="footer-rule" data-layer="rule" />
       <div class="footer-bottom">
-        <p class="mono-label" data-layer="text">© 2026 Qiang Luo · ktr0a</p>
-        <p class="mono-label" data-layer="text">Rebuilt live by agents · qluo.dev</p>
+        <p class="footer-note" data-layer="text">© 2026 Qiang Luo · ktr0a</p>
+        <p class="footer-note" data-layer="text">Rebuilt live by agents · qluo.dev</p>
       </div>
     </div>
   </footer>

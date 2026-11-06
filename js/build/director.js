@@ -25,10 +25,13 @@
 
    Public API (SPEC §5):
      createDirector({ root=document, scroller, sfx, speed, onState }) → {
-       start(), skip(), replay(), setSpeed(1|2|4), setTour(bool), destroy(),
+       start({ speed, tour }),   // the automatic build; tour:false leaves the camera where it is
+       replay({ speed=1, tour=true }),   // Rebuild / Replay / R: the default animation from the top
+       skip(), setSpeed(1|2|4), setTour(bool), destroy(),   // setSpeed/setTour: this run only
        get state(), get speed(), get tour(),
        inspect()   // read-only debug snapshot (scheduler stats)
      }
+   Nothing here touches localStorage except reading 'ktr0a:anim' (main.js owns the visit settings).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { createSwarm, PALETTE } from "./agents.js";
@@ -36,7 +39,6 @@ import { createOverlay } from "./overlay.js";
 import { beginType, selectWord, cloneText, selectAll, countChars, longestWordIndex, styleSnapshot } from "./typer.js";
 import { createHud } from "./hud.js";
 
-const SPEED_KEY = "ktr0a:buildSpeed";
 const SPEEDS = [1, 2, 4];
 
 const BOOT_DUR = 1.5; // orbiting the logo tile
@@ -117,7 +119,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
   let phase = "idle";
   let destroyed = false;
   let skipped = false;
-  let speedMul = SPEEDS.includes(speed) ? speed : readSpeed();
+  let speedMul = SPEEDS.includes(Number(speed)) ? Number(speed) : 1;
   let tour = true;
 
   let T = 0; // build clock (seconds × speed)
@@ -181,15 +183,6 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
   const unsubs = [];
 
   /* ───────────────────────────── utilities ───────────────────────────── */
-
-  function readSpeed() {
-    try {
-      const n = Number(localStorage.getItem(SPEED_KEY));
-      return SPEEDS.includes(n) ? n : 1;
-    } catch {
-      return 1;
-    }
-  }
 
   function play(name, xPx, extra) {
     try {
@@ -1669,13 +1662,15 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     if (!hud) return;
     let enabled = false;
     let unlocked = false;
+    let blocked;
     try {
       enabled = !!sfx.enabled;
       unlocked = !!sfx.unlocked;
+      if ("blocked" in sfx) blocked = !!sfx.blocked; // the hint shows only while audio is refused
     } catch {
       /* stub */
     }
-    hud.setSound({ enabled, unlocked });
+    hud.setSound({ enabled, unlocked, blocked });
   }
 
   /**
@@ -1692,15 +1687,11 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     syncSound();
   }
 
+  /** Playback speed of the current run only (nothing is persisted). */
   function setSpeed(n) {
     n = Number(n);
     if (!SPEEDS.includes(n)) return;
     speedMul = n;
-    try {
-      localStorage.setItem(SPEED_KEY, String(n));
-    } catch {
-      /* storage unavailable */
-    }
     hud?.setSpeed(n);
   }
 
@@ -1736,7 +1727,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
         break;
       case "replay":
         play("click");
-        replay();
+        replay(); // always the default animation (1x, tour on), whatever the visit settings say
         break;
     }
   }
@@ -1750,7 +1741,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       else if (phase === "done" && hud && !hud.hidden) hud.hide();
     } else if (k === "r" || k === "R") {
       // a bare letter key never overrides the visitor's "animations off" choice
-      if ((phase === "done" || phase === "idle") && readAnim()) replay();
+      if ((phase === "done" || phase === "idle") && readAnim()) replay(); // default animation
     } else if (k === "m" || k === "M") {
       toggleSound();
     } else if ((k === "t" || k === "T") && (phase === "boot" || phase === "build")) {
@@ -1831,14 +1822,20 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
 
   /* ───────────────────────────── public API ───────────────────────────── */
 
-  function start() {
+  /**
+   * The automatic build on page load. speed: 1|2|4 (default: the createDirector option).
+   * tour:false (a return visit's setting) builds wherever the visitor is: no jump to the top.
+   * A deep link (#section) always starts without the tour.
+   */
+  function start({ speed: runSpeed, tour: wantTour = true } = {}) {
     if (destroyed || phase !== "idle") return runPromise;
     clearTimeout(window.__buildFailSafe);
     try {
       setup();
+      if (SPEEDS.includes(Number(runSpeed))) speedMul = Number(runSpeed);
       // slow network: the visitor has stared at a black page long enough, so get to the content
       bootDur = performance.now() > LATE_START_MS ? LATE_BOOT_DUR : BOOT_DUR;
-      tour = !location.hash || location.hash === "#" || location.hash === "#hero";
+      tour = wantTour !== false && (!location.hash || location.hash === "#" || location.hash === "#hero");
       if (tour) scroller.scrollTo(0, { duration: 0 });
       startRun();
     } catch (err) {
@@ -1884,7 +1881,8 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
     }
   }
 
-  function replay() {
+  /** Restarts the whole build from boot. Defaults to the full animation: 1x, tour on, from the top. */
+  function replay({ speed: runSpeed = 1, tour: wantTour = true } = {}) {
     if (destroyed) return;
     try {
       clearTimeout(window.__buildFailSafe);
@@ -1904,8 +1902,9 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
       html.classList.remove("build-mini", "build-smear");
       html.classList.add("build-pending");
       bootDur = BOOT_DUR;
-      tour = true;
-      scroller.scrollTo(0, { duration: 0 });
+      speedMul = SPEEDS.includes(Number(runSpeed)) ? Number(runSpeed) : 1;
+      tour = wantTour !== false;
+      if (tour) scroller.scrollTo(0, { duration: 0 });
       hud.show();
       startRun();
     } catch (err) {

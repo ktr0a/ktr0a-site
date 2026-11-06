@@ -3,8 +3,9 @@
 
    Boots every piece of the page and wires them together:
      sfx · email · GitHub/YouTube data · nav · in-page anchors · Lenis smooth
-     scroll (fine pointers) · toggles (animations / sound / rebuild) · UI sfx ·
-     agent cursor (fine pointers) · hero 3D · the build director.
+     scroll (fine pointers) · toggles (animations / sound / rebuild) · build
+     settings (gear popover, ./settings.js) · UI sfx · agent cursor (native CSS
+     cursor + trailing "you" tag, ./cursor.js) · hero 3D · the build director.
 
    Each step runs inside guard(): one failing feature logs a warning and never
    blocks the others. The sound engine and the build engine (and third-party code:
@@ -13,15 +14,30 @@
    instead of taking this module (email, data, nav) down with it. Content wiring
    runs first and never waits for them.
 
-   localStorage keys: 'ktr0a:anim' ('on'|'off'), 'ktr0a:buildSpeed' (1|2|4),
-   plus the ones owned by sfx.js / data.js.
+   Which build plays (first visit vs return visit):
+     first visit    'ktr0a:visited' absent: the automatic build plays at 1x with the tour on.
+                    The key is set to "1" once that first automatic build has started.
+     return visit   the automatic build uses the visitor's settings (gear popover):
+                    'ktr0a:returnSpeed' (1|2|4, default 2), 'ktr0a:returnTour' ('on'|'off',
+                    default 'off'; off = the camera stays where the visitor is).
+     Rebuild / Replay / R   always the default animation: 1x, tour on, from the top.
+     HUD speed / tour       the current run only; nothing is persisted.
+   Settings changes save at once and also apply live while a return-visit run is playing.
+
+   localStorage keys: 'ktr0a:anim' ('on'|'off'), the three above, plus the ones owned by
+   sfx.js / data.js. The v1 key 'ktr0a:buildSpeed' is retired and removed on load.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { applyEmail, loadGitHubRepos, loadYouTubeStats } from "./data.js";
 
 const root = document.documentElement;
 const ANIM_KEY = "ktr0a:anim";
-const SPEED_KEY = "ktr0a:buildSpeed";
+const VISITED_KEY = "ktr0a:visited";
+const RETURN_SPEED_KEY = "ktr0a:returnSpeed";
+const RETURN_TOUR_KEY = "ktr0a:returnTour";
+const LEGACY_SPEED_KEY = "ktr0a:buildSpeed"; // v1 (remembered HUD speed): retired
+const SPEEDS = [1, 2, 4];
+const DEFAULT_RUN = Object.freeze({ speed: 1, tour: true }); // first visit, Rebuild, Replay, R
 const NAV_GAP = 8; // breathing room between the fixed nav and an anchor target
 const FINE_POINTER = window.matchMedia("(hover: hover) and (pointer: fine)");
 // Longest the build waits, on its black pre-boot screen, for the 3D object and the project
@@ -44,6 +60,13 @@ const store = {
       localStorage.setItem(key, value);
     } catch {
       /* storage unavailable: preference lasts for this page view only */
+    }
+  },
+  remove(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* storage unavailable */
     }
   },
 };
@@ -69,6 +92,10 @@ const isEditable = (el) => el instanceof Element && !!el.closest(EDITABLE);
 
 const state = {
   animOn: store.get(ANIM_KEY) !== "off",
+  firstVisit: store.get(VISITED_KEY) !== "1", // read once at load, before this visit's build marks it
+  runKind: null, // the director's current run: 'first' | 'return' (automatic builds) | 'default' (Rebuild/Replay/R)
+  starting: false, // inside the automatic start() call (its 'boot' state is not a replay)
+  settings: null, // build settings popover (./settings.js)
   director: null, // build engine instance (created only when a build runs)
   hero: null, // { setAnimate, dispose } from hero3d.js
   lenis: null, // Lenis instance while smooth scrolling is active
@@ -197,6 +224,9 @@ const scroller = {
 };
 
 const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Spacebar"]);
+// The fixed settings popover (and its gear): arrows / Home / End / Tab there operate its controls
+// and never scroll the page, so they must not switch the build's tour off.
+const inSettings = (el) => el instanceof Element && !!el.closest(".build-settings, #build-settings-btn");
 
 function initUserScrollDetection() {
   const opts = { passive: true, capture: true };
@@ -205,7 +235,7 @@ function initUserScrollDetection() {
   window.addEventListener(
     "keydown",
     (e) => {
-      if (!SCROLL_KEYS.has(e.key) || e.altKey || e.ctrlKey || e.metaKey || isEditable(e.target)) return;
+      if (!SCROLL_KEYS.has(e.key) || e.altKey || e.ctrlKey || e.metaKey || isEditable(e.target) || inSettings(e.target)) return;
       // Space on a focused button/link activates it instead of scrolling.
       if ((e.key === " " || e.key === "Spacebar") && e.target instanceof Element && e.target.closest("button, a, summary")) return;
       emitUserScroll("key");
@@ -214,7 +244,11 @@ function initUserScrollDetection() {
   );
   // Tab moves focus and the browser scrolls the focused control into view: that is the visitor
   // navigating, so the build's Tour must stop (it would scroll the focused control away again).
-  window.addEventListener("keydown", (e) => e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey && emitUserScroll("focus"), opts);
+  window.addEventListener(
+    "keydown",
+    (e) => e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey && !inSettings(e.target) && emitUserScroll("focus"),
+    opts
+  );
   // Grabbing the scrollbar: a mouse press to the right of the layout viewport.
   window.addEventListener(
     "pointerdown",
@@ -400,9 +434,17 @@ function flushPendingText() {
 
 let createDirector = null; // from ./build/director.js (loadEngines)
 
-function readSpeed() {
-  const n = Number(store.get(SPEED_KEY));
-  return n === 2 || n === 4 ? n : 1;
+/** The visitor's return-visit settings (gear popover): speed 1|2|4 (default 2), tour (default off). */
+function readReturnSettings() {
+  const n = Number(store.get(RETURN_SPEED_KEY));
+  return { speed: SPEEDS.includes(n) ? n : 2, tour: store.get(RETURN_TOUR_KEY) === "on" };
+}
+
+/** The automatic build on page load: the full animation on a first visit, the visitor's settings after. */
+function automaticRun() {
+  if (state.firstVisit) return { ...DEFAULT_RUN, kind: "first" };
+  const { speed, tour } = readReturnSettings();
+  return { speed, tour, kind: "return" };
 }
 
 function clearBuildPending() {
@@ -412,6 +454,8 @@ function clearBuildPending() {
 
 function onDirectorState(s) {
   try {
+    // Any boot other than the automatic start() is a replay (HUD Replay, R, Rebuild): the default run.
+    if (s === "boot" && !state.starting) state.runKind = "default";
     if (s === "done") flushPendingText();
     // A replay started from the HUD implies animations are wanted again, for this visit only:
     // the saved preference changes through the nav toggle / Rebuild button alone.
@@ -421,12 +465,23 @@ function onDirectorState(s) {
   }
 }
 
-/** Creates a director and starts it. Any failure reveals the page instead of leaving it hidden. */
-function startDirector() {
+/**
+ * Creates a director and starts it. Any failure reveals the page instead of leaving it hidden.
+ * kind 'first' | 'return': the automatic build on load (marks the visit); 'default': Rebuild.
+ */
+function startDirector({ speed = DEFAULT_RUN.speed, tour = DEFAULT_RUN.tour, kind = "default" } = {}) {
   try {
     if (typeof createDirector !== "function") throw new Error("build engine unavailable");
-    state.director = createDirector({ root: document, scroller, sfx, speed: readSpeed(), onState: onDirectorState });
-    const run = state.director.start();
+    state.director = createDirector({ root: document, scroller, sfx, speed, onState: onDirectorState });
+    state.runKind = kind;
+    state.starting = true;
+    let run;
+    try {
+      run = state.director.start({ speed, tour });
+    } finally {
+      state.starting = false;
+    }
+    if (kind !== "default") store.set(VISITED_KEY, "1"); // the first automatic build has started
     if (run && typeof run.catch === "function") {
       run.catch((err) => {
         warn("build", err);
@@ -443,20 +498,47 @@ function startDirector() {
 }
 
 function initialBuild() {
-  if (state.animOn && root.classList.contains("build-pending")) startDirector();
+  if (state.animOn && root.classList.contains("build-pending")) startDirector(automaticRun());
   else clearBuildPending();
   // Not adopted by a director (animations switched off during the wait, or start failed).
   document.querySelector(".build-logo[data-preboot]")?.remove();
 }
 
 /**
- * Nav "Rebuild" button (and R while no director exists): replay, turning animations on first.
+ * Nav "Rebuild" button (and R while no director exists): the default animation (1x, tour on,
+ * from the top) whatever the return-visit settings say, turning animations on first.
  * The director (re)applies html.build-pending itself in start()/replay() and reveals the page on failure.
  */
 function rebuild() {
   if (!state.animOn) setAnimations(true);
-  if (!state.director) startDirector();
-  else guard("replay", () => state.director.replay());
+  if (!state.director) startDirector({ ...DEFAULT_RUN, kind: "default" });
+  else guard("replay", () => state.director.replay({ ...DEFAULT_RUN }));
+}
+
+/* ─────────────────────────── build settings ───────────────────────────
+   Gear popover (./settings.js). Changes are saved at once; while the current run is itself a
+   return-visit build they also apply live (only the setting that changed). With animations off
+   it still works: the settings simply apply to the next automatic build. */
+
+function onSettingsChange({ speed, tour, changed }) {
+  store.set(RETURN_SPEED_KEY, String(speed));
+  store.set(RETURN_TOUR_KEY, tour ? "on" : "off");
+  const s = directorState();
+  if (state.runKind !== "return" || (s !== "boot" && s !== "build")) return;
+  if (changed === "speed") guard("live speed", () => state.director.setSpeed(speed));
+  else if (changed === "tour") guard("live tour", () => state.director.setTour(tour));
+}
+
+function initSettings(mod) {
+  const mount = mod?.mountBuildSettings ?? mod?.default;
+  if (typeof mount !== "function" || state.settings) return;
+  state.settings = mount({ initial: readReturnSettings(), onChange: onSettingsChange, play });
+  // Normally mounted before the director plans. If the module arrived after that, hand the gear to
+  // the running build (queued, or a mini-build once done) like any late content.
+  const gear = state.settings?.button;
+  if (gear && directorState() !== "idle") {
+    document.dispatchEvent(new CustomEvent("build:layers-added", { detail: { root: gear } }));
+  }
 }
 
 /* ─────────────────────────────── toggles ─────────────────────────────── */
@@ -472,22 +554,8 @@ function syncSoundToggle() {
 }
 
 /**
- * The project SVGs animate with CSS of their own. Each file freezes itself when loaded as
- * "<file>.svg#still" (a root :target rule), so the fragment follows the animation switch.
- */
-function syncVisuals() {
-  for (const img of document.querySelectorAll(".project-visual img")) {
-    const src = img.getAttribute("src") || "";
-    if (!/\.svg(#still)?$/.test(src)) continue;
-    const base = src.replace(/#still$/, "");
-    const want = state.animOn ? base : `${base}#still`;
-    if (src !== want) img.setAttribute("src", want);
-  }
-}
-
-/**
  * Live animation switch. Off: fast-forward any running build (or late-cards mini-build),
- * freeze the 3D object and the project SVGs, drop Lenis smoothing. On: resume them (no
+ * freeze the 3D object, drop Lenis smoothing. On: resume them (no
  * automatic rebuild). persist:false changes this visit only (a replay from the HUD).
  */
 function setAnimations(on, { persist = true } = {}) {
@@ -495,7 +563,6 @@ function setAnimations(on, { persist = true } = {}) {
   if (persist) store.set(ANIM_KEY, on ? "on" : "off");
   root.classList.toggle("anim-off", !on); // styling hook for CSS transitions
   syncAnimToggle();
-  guard("svg visuals", syncVisuals);
   guard("hero3d setAnimate", () => state.hero?.setAnimate(on));
   if (on) {
     guard("lenis", enableLenis);
@@ -538,8 +605,9 @@ function initToggles() {
 
 /* ──────────────────────────── UI sound effects ──────────────────────────── */
 
-// Controls that play their own sounds: the nav toggles here, the HUD inside the director.
-const SELF_SOUNDING = "#sound-toggle, #anim-toggle, .build-hud, [data-sfx='off']";
+// Controls that play their own sounds: the nav toggles here, the HUD inside the director,
+// the settings popover in settings.js.
+const SELF_SOUNDING = "#sound-toggle, #anim-toggle, .build-hud, .build-settings, [data-sfx='off']";
 
 function initUiSfx() {
   let lastHover = 0;
@@ -569,133 +637,6 @@ function initUiSfx() {
     if (!el || el.closest(SELF_SOUNDING)) return;
     play("click", { x: panX(e) });
   });
-}
-
-/* ──────────────────────────── agent cursor ────────────────────────────
-   Multiplayer-style cursor for fine pointers: a white arrow (the agents' shape)
-   with a small "you" tag. The native cursor is hidden ONLY via html.has-agent-cursor,
-   added after the first real mouse move and removed again on any error, so the
-   page can never end up without a visible cursor. */
-
-const CURSOR_CSS = `
-html.has-agent-cursor, html.has-agent-cursor * { cursor: none !important; }
-html.has-agent-cursor :is(textarea, select, [contenteditable=""], [contenteditable="true"],
-  input:not([type="button"], [type="submit"], [type="reset"], [type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="image"])) {
-  cursor: text !important;
-}
-.agent-cursor {
-  position: fixed; left: 0; top: 0; z-index: 2147483647;
-  pointer-events: none; opacity: 0; transition: opacity .16s ease;
-  will-change: transform; contain: layout style;
-}
-html:not(.has-agent-cursor) .agent-cursor { display: none; }
-.agent-cursor.is-visible { opacity: 1; }
-.agent-cursor__arrow {
-  display: block; overflow: visible; transform-origin: 1px 1px;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .55));
-  transition: transform .14s cubic-bezier(.2, .8, .2, 1);
-}
-.agent-cursor.is-down .agent-cursor__arrow { transform: scale(.84); }
-.agent-cursor__tag {
-  position: absolute; left: 12px; top: 19px;
-  padding: 2px 6px 3px; border-radius: 999px;
-  font: 500 10px/1.1 var(--font-mono, "JetBrains Mono", ui-monospace, monospace); letter-spacing: .02em;
-  color: var(--text, #f3f4f6); background: rgba(14, 15, 18, .92);
-  border: 1px solid var(--line-2, rgba(255, 255, 255, .14)); white-space: nowrap;
-  transition: background-color .14s ease, border-color .14s ease;
-}
-.agent-cursor.is-link .agent-cursor__tag { background: var(--blue, #3d7bff); border-color: transparent; }
-`;
-
-// Classic pointer with its tip at (1,1): the exact polygon the build agents use (agents.js ARROW, +1 px).
-const ARROW_SVG =
-  '<svg class="agent-cursor__arrow" width="14" height="20" viewBox="0 0 14 20" aria-hidden="true">' +
-  '<path d="M1 1V16.5L4.9 12.9 7.6 18.6 10.1 17.5 7.5 11.9H12.6Z" fill="#fff" stroke="#08080a" stroke-width="1" stroke-linejoin="round"/>' +
-  "</svg>";
-
-const INTERACTIVE = "a[href], button, [role='button'], label, summary, select";
-
-function initCursor() {
-  if (!FINE_POINTER.matches) return;
-
-  const el = document.createElement("div");
-  el.className = "agent-cursor";
-  el.setAttribute("aria-hidden", "true");
-  el.innerHTML = `${ARROW_SVG}<span class="agent-cursor__tag">you</span>`;
-  document.body.appendChild(el);
-
-  let x = 0;
-  let y = 0;
-  let frame = 0;
-  let armed = false;
-  let failed = false;
-  const listeners = [];
-  const on = (target, type, fn, opts) => {
-    target.addEventListener(type, fn, opts);
-    listeners.push(() => target.removeEventListener(type, fn, opts));
-  };
-
-  const fail = (err) => {
-    if (failed) return;
-    failed = true;
-    root.classList.remove("has-agent-cursor"); // native cursor back, always
-    cancelAnimationFrame(frame);
-    listeners.forEach((off) => off());
-    el.remove();
-    if (err) warn("agent cursor", err);
-  };
-  // Defensive wrapper: any exception inside cursor code restores the native cursor.
-  const safe = (fn) => (e) => {
-    if (failed) return;
-    try {
-      fn(e);
-    } catch (err) {
-      fail(err);
-    }
-  };
-
-  const render = () => {
-    frame = 0;
-    if (failed) return;
-    try {
-      el.style.transform = `translate3d(${x - 1}px, ${y - 1}px, 0)`; // tip sits at (1,1)
-    } catch (err) {
-      fail(err);
-    }
-  };
-  const setVisible = (v) => el.classList.toggle("is-visible", v);
-
-  on(
-    window,
-    "pointermove",
-    safe((e) => {
-      if (e.pointerType !== "mouse") return setVisible(false); // pen/touch on hybrids: native behaviour
-      x = e.clientX;
-      y = e.clientY;
-      const target = e.target instanceof Element ? e.target : null;
-      if (!armed) {
-        armed = true;
-        render(); // place it before the native cursor disappears
-        root.classList.add("has-agent-cursor");
-      } else if (!frame) {
-        frame = requestAnimationFrame(render);
-      }
-      // Over text fields the native I-beam is kept, and over the page scrollbar the browser
-      // always draws its own arrow: hide ours there to avoid two cursors.
-      setVisible(!isEditable(target) && x < root.clientWidth);
-      el.classList.toggle("is-link", !!(target && target.closest(INTERACTIVE)));
-    }),
-    { passive: true }
-  );
-  on(window, "pointerdown", safe((e) => e.pointerType === "mouse" && el.classList.add("is-down")), { passive: true });
-  on(window, "pointerup", safe(() => el.classList.remove("is-down")), { passive: true });
-  on(window, "pointercancel", safe(() => el.classList.remove("is-down")), { passive: true });
-  // Leaving the window (relatedTarget null) or switching away hides it until the next move.
-  on(window, "mouseout", safe((e) => !e.relatedTarget && setVisible(false)), { passive: true });
-  on(window, "blur", safe(() => setVisible(false)));
-  on(window, "dragstart", safe(() => setVisible(false))); // the OS draws the drag cursor
-  // Pointer type can change at runtime (e.g. tablet mode): give the cursor back.
-  on(FINE_POINTER, "change", safe(() => !FINE_POINTER.matches && fail()));
 }
 
 /* ─────────────────────────────── hero 3D ─────────────────────────────── */
@@ -757,8 +698,7 @@ html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
 .lenis.lenis-stopped { overflow: hidden; }
 /* Sections focused programmatically after keyboard anchor navigation */
-section[tabindex="-1"]:focus, main[tabindex="-1"]:focus, footer[tabindex="-1"]:focus { outline: none; }
-${CURSOR_CSS}`;
+section[tabindex="-1"]:focus, main[tabindex="-1"]:focus, footer[tabindex="-1"]:focus { outline: none; }`;
 
 function injectStyles() {
   const style = document.createElement("style");
@@ -809,6 +749,11 @@ function showPrebootLogo() {
 
 function boot() {
   guard("styles", injectStyles);
+  store.remove(LEGACY_SPEED_KEY); // v1 remembered the HUD speed; the HUD now changes one run only
+
+  // The settings gear joins the nav before the director plans (so the build builds it with the
+  // other nav chips). Loaded on its own, never blocking the engines; a failure means no gear.
+  const settingsReady = loadModule("./settings.js", "settings").then((mod) => guard("settings", () => initSettings(mod)));
 
   // Content first, so the director's initial plan already sees final text where possible.
   // None of this depends on the engines below, so it works even if they fail to load.
@@ -826,9 +771,20 @@ function boot() {
   guard("lenis", () => state.animOn && enableLenis());
   guard("anchors", initAnchors);
   guard("nav", initNav);
-  guard("cursor", initCursor);
+  // Native agent cursor + trailing "you" tag. Its own module: a failed load just leaves the
+  // system cursor (nothing else depends on it).
+  loadModule("./cursor.js", "cursor").then((mod) =>
+    guard("agent cursor", () =>
+      mod?.initCursor?.({
+        root,
+        finePointer: FINE_POINTER,
+        isEditable,
+        animOn: () => state.animOn,
+        onError: (err) => warn("agent cursor", err),
+      })
+    )
+  );
   root.classList.toggle("anim-off", !state.animOn);
-  guard("svg visuals", syncVisuals);
 
   // Debug / integration handle (read-only).
   window.__ktr0a = Object.freeze({
@@ -840,6 +796,13 @@ function boot() {
     },
     get animations() {
       return state.animOn;
+    },
+    /** 'first' | 'return' | 'default' | null: which kind of run the director is playing. */
+    get run() {
+      return state.runKind;
+    },
+    get settings() {
+      return state.settings;
     },
     scroller,
     rebuild,
@@ -856,7 +819,7 @@ function boot() {
       guard("ui sfx", initUiSfx);
       if (!building) return;
       if (createDirector) guard("preboot logo", showPrebootLogo);
-      const settled = Promise.allSettled([heroReady, visualsReady]);
+      const settled = Promise.allSettled([heroReady, visualsReady, settingsReady]);
       return Promise.race([settled, new Promise((r) => setTimeout(r, PREBOOT_WAIT_MS))]);
     })
     .finally(() => guard("build", initialBuild));
