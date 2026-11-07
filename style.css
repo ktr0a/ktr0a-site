@@ -665,12 +665,12 @@ body::before {
   white-space: nowrap;
 }
 /* The two channel numbers (past work) sit apart from the current facts. */
-.now-row:nth-child(3) {
+.now-row:nth-child(2) {
   margin-top: 5px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
-.now-row:nth-child(3) dd { top: 12px; }
+.now-row:nth-child(2) dd { top: 12px; }
 
 /* ─────────────────────────────────────────────── SECTION HEADS ── */
 .section-head {
@@ -1357,6 +1357,18 @@ html.build-pending body:not(:has(.is-built))::before { opacity: 0; }
   .contact-frame { grid-template-columns: minmax(0, 1fr); align-items: start; }
 }
 
+/* Up to 800px the one-row bar has no room for the Rebuild label: icon only, as on phones. */
+@media (max-width: 800px) {
+  #rebuild-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    padding: 0;
+  }
+  #rebuild-btn span { display: none; }
+  #rebuild-btn svg { margin: 0; }
+}
+
 @media (max-width: 760px) {
   /* Two-row glass bar: brand + actions, then the section links (scrollable if they ever overflow). */
   :root {
@@ -1388,14 +1400,6 @@ html.build-pending body:not(:has(.is-built))::before { opacity: 0; }
   .nav-links::-webkit-scrollbar { display: none; }
   .nav-link { flex: none; padding: 6px 10px; font-size: 14px; }
   .nav-actions { gap: 5px; }
-  #rebuild-btn {
-    display: inline-grid;
-    place-items: center;
-    width: 36px;
-    padding: 0;
-  }
-  #rebuild-btn span { display: none; }
-  #rebuild-btn svg { margin: 0; }
 
   .hero { padding-top: calc(var(--nav-h) + 44px); }
   .display-md { font-size: clamp(32px, 9vw, 44px); }

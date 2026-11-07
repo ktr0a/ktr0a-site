@@ -23,7 +23,7 @@ from a small Vercel function.
 | `js/data.js` | Email, GitHub repos, YouTube stats |
 | `js/build/` | The build engine: `director` (planning and timeline), `agents`, `overlay` (canvas drawing), `typer`, `hud` |
 | `js/sfx.js` | Procedural WebAudio sound effects and the ambient bed |
-| `js/herograph.js` | Hero "vault map" (Canvas 2D): the study system as a live graph that agent cursors keep filing notes into |
+| `js/herograph.js` | Hero "vault map" (Canvas 2D): the study system as an animated graph that agent cursors keep filing notes into |
 | `assets/` | Favicon, OG image, project screenshots (`assets/shots/`) |
 | `api/youtube.js` | Vercel function: channel statistics (needs `YT_API_KEY`) |
 
@@ -50,6 +50,8 @@ their static fallback values.
 - **Rebuild** (nav), **Replay** (HUD) and **R** go back to the start screen and play the full build at
   1x with the tour on.
 - **Go live** (HUD, after the build) closes the HUD and scrolls back to the top of the finished page.
+- **Hero map:** an animated map of Uni OS; it grows in when the build reveals it (a short grow after a
+  skip) and shows one still frame with animations off.
 - **Sound** is on by default. On a return visit it starts on the first click, tap or key press.
 - **Cursor:** on mouse and trackpad devices the arrow is a native CSS cursor (no lag); only the small "you"
   tag is moved by script and trails slightly. High-contrast (forced-colors) mode keeps the system cursor.

@@ -7,8 +7,12 @@
  * upper-right edge where notes come in. A few of the build's agent cursors keep working after the
  * build: carriers pick a note up at the inbox, take it through the vault to its course and file it
  * (a new leaf appears in their colour and settles to grey, the course's oldest leaf fades so the
- * count stays put, the course pip blinks green); a coordinator makes slow rounds of the course hubs
- * along the orbit ring. Mostly monochrome: colour only comes from agents and status pips.
+ * count stays put, the course pip blinks green, the route they walked keeps a faint trace for a
+ * moment); a coordinator makes slow rounds of the course hubs along the orbit ring. The inbox, the
+ * vault and the link between them take one carrier at a time, and so does a course's spoke until
+ * its carrier is back past the vault: the other waits where it is until its turn, so the two never
+ * meet head-on on a line. Mostly monochrome: colour only comes from agents, their traces and
+ * status pips.
  *
  *   export async function mountHeroGraph(container, { animate = true } = {}) → { setAnimate(bool), dispose() }
  *
@@ -17,15 +21,19 @@
  *    visual area simply stays empty).
  *  - The canvas is aria-hidden and pointer-events:none, sized to the container (ResizeObserver).
  *  - Renders only while animating AND on screen (IntersectionObserver) AND the tab is visible AND the
- *    hero layer is revealed; capped to ~60 fps; DPR ≤ 2 (≤ 1.5 on coarse pointers / small screens).
+ *    hero layer is revealed; paced to ~60 fps on any refresh rate; the backing store follows the
+ *    screen's DPR up to 3 (2 for a canvas past ~2.4 M device px), DPR changes are caught (zoom,
+ *    moving between screens).
  *  - Deterministic: a seeded PRNG drives the layout and the choreography, so every visit starts
  *    from the same picture.
  *  - Grows in (vault, links, courses, leaves, inbox, agents) when the build reveals the hero layer
  *    (`is-built` on the closest [data-layer]); a short grow when there is no build (or after a skip).
- *  - setAnimate(false) parks every agent at a node and renders one complete still; true resumes.
- *  - The layout is fitted per size so no node or label sits under the facts panel (.hero-now) that
- *    overlaps the visual; only faint links may pass under the glass.
- *  - window.__heroGraphStats = { frames, drawMsTotal, drawMsMax } (cheap debug counters for tests).
+ *  - setAnimate(false) parks every agent at a node and renders one complete still (with the name of
+ *    the note that was filed last beside its leaf); true resumes.
+ *  - The layout is fitted per size so no node, label or parked agent sits under the facts panel
+ *    (.hero-now) that overlaps the visual; only faint links may pass under the glass.
+ *  - Debug only (localStorage ktr0a:debug = "1" or ?debug in the URL): window.__heroGraphStats =
+ *    { frames, drawMsTotal, drawMsMax, agents, layout }, removed again by dispose().
  */
 
 import { ARROW, PALETTE } from "./build/agents.js";
@@ -44,13 +52,40 @@ const SEED = 0x6b747230;          // "ktr0"
 // ang: place on the orbit (deg, screen space: 0 = right, clockwise). fan: leaf spread around the
 // outward direction (deg). tags: label anchors relative to the hub (px, not scaled) + alignment,
 // in order of preference (the layout takes the first one clear of other labels, nodes and links).
-// notes: the generic note names filed into this course ("Lecture 8", "Sheet 6", counting up).
+// notes: the next lecture / sheet number filed into this course ("Lecture 8", "Sheet 6"); they
+// count up and wrap inside the semester so far (MAX_LECTURE, MAX_SHEET).
 const COURSES = [
   { label: "DISCRETE MATH", ang: -140, fan: [-40, 56], tags: [[10, -6, "l"], [-10, 9, "r"], [0, -15, "c"]], notes: [8, 6] },
-  { label: "A&D", ang: 4, fan: [-56, 52], tags: [[0, -15, "c"], [0, 15, "c"]], notes: [7, 5] },
+  { label: "A&D", ang: 4, fan: [-56, 52], tags: [[-8, -14, "r"], [0, -15, "c"], [-8, 14, "r"], [0, 15, "c"]], notes: [7, 5] },
   { label: "LIN ALG", ang: 58, fan: [-64, 16], tags: [[9, -14, "l"], [0, -15, "c"], [-10, -10, "r"]], notes: [6, 4] },
-  { label: "PROGRAMMING", ang: 166, fan: [-46, 38], tags: [[14, 14, "l"], [0, -15, "c"], [-10, 13, "r"]], notes: [9, 7] },
+  { label: "PROGRAMMING", ang: 166, fan: [-46, 38], tags: [[14, 14, "l"], [0, -15, "c"], [-10, 13, "r"]], notes: [8, 7] },
 ];
+// Fallback label spots around any hub, tried after the course's own list (upper ones first).
+const RING_TAGS = [
+  [0, -15, "c"], [9, -13, "l"], [-9, -13, "r"], [11, -6, "l"], [-11, -6, "r"], [11, 6, "l"], [-11, 6, "r"],
+  [9, 13, "l"], [-9, 13, "r"], [0, 15, "c"], [0, -22, "c"], [14, -19, "l"], [-14, -19, "r"], [0, 22, "c"],
+  [14, 19, "l"], [-14, 19, "r"],
+];
+// An agent's footprint relative to its spot on a path (px, x0 y0 x1 y1), as drawn at AGENT_SCALE:
+// the arrow (its tip 1.5 px down and right of the spot) in four boxes, then the note a carrier
+// drags (last box). Used to keep course labels off the agents' paths.
+const FOOT = [
+  1.5, 1.5, 4.6, 13.9, 4.6, 4.5, 7.5, 10.2, 7.5, 8, 10.8, 10.2, 4.6, 10.2, 8.8, 15.6,
+  10.5, 13.5, 14.5, 18.5,
+];
+const FOOT_X = 14.5;              // its reach right of and below the spot
+const FOOT_Y = 18.5;
+// Where a filed note's name may go around its leaf, in order of preference (placeNote): [kind, a, b]
+//   0 beside it: a = 1 outward / -1 inward side, b = shifted down (px)
+//   1 beyond it, away from its hub (out past the fan): a = gap (px)
+//   2 diagonally: a = 1 outward / -1 inward side, b = -1 above / 1 below
+//   3 centred above (b = -1) or below (b = 1)
+//   4 a ring of fallbacks: a = gap (px), b = direction (× 22.5 deg, screen space)
+const NOTE_SPOTS = [
+  [0, 1, 0], [1, 6, 0], [3, 0, -1], [2, 1, -1], [0, 1, -8], [0, 1, 8], [0, -1, 0], [0, -1, -8],
+  [0, -1, 8], [2, -1, -1], [1, 12, 0], [1, 18, 0], [2, 1, 1], [2, -1, 1], [3, 0, 1],
+];
+for (const gap of [8, 14, 20]) for (let d = 0; d < 16; d++) NOTE_SPOTS.push([4, gap, d]);
 const INBOX_ANG = -46;            // deg, from the vault
 const INBOX_DIST = 1.5;           // × orbit radius
 const SHAPES = [1, 1.3, 1.65];    // orbit aspect ratios the fitter may use (wider for short free areas)
@@ -68,10 +103,14 @@ const LINE_RING = "rgba(255,255,255,0.085)";
 const LINE_TRAIL = "rgba(255,255,255,0.17)"; // the stretch of orbit the coordinator just walked
 const HUB_STROKE = "rgba(255,255,255,0.55)";
 const LEAF_ALPHA = 0.42;
-const LABEL_ALPHA = 0.78;
+const COURSE_ALPHA = 0.85;        // course labels
+const LABEL_ALPHA = 0.78;         // VAULT, INBOX (a step quieter than the courses)
 const PIP_REST = 0.3;             // resting status pip (in sync): dim green
+const COURSE_PX = 10.5;
 const LABEL_PX = 9.5;
 const NOTE_PX = 9;
+const NOTE_ALPHA = 0.62;
+const TRACE_ALPHA = 0.26;         // the route a carrier just walked, in its colour (≤ 0.28)
 const LEAF_R = 2;
 const HUB_R = 3.6;
 const DASH_RING = [1.5, 4.5];
@@ -80,7 +119,7 @@ const NO_DASH = [];
 
 /* ── motion ──────────────────────────────────────────────────────────────────────────────────── */
 
-const MIN_FRAME_MS = 1000 / 66;   // ~60 fps cap on high-refresh displays
+const FRAME_MS = 1000 / 60;       // ~60 fps on high-refresh displays (paced by a due time, see tick())
 const GROW_S = 2.2;               // full grow-in when the build reveals the hero
 const GROW_SHORT = 0.55;          // time factor for the short grow (no build / after a skip)
 const CRUISE = 56;                // carrier speed along links (design px / s)
@@ -98,8 +137,22 @@ const DRIFT = 1.3;                // px: leaves breathe around their place
 const PUSH = 5;                   // px: leaves ease away from the visitor's pointer
 const PUSH_R = 64;
 const Q_MAX = 3;                  // notes waiting in the inbox
-const MAX_LECTURE = 14;           // note names wrap around after a semester's worth
-const MAX_SHEET = 13;
+const MAX_LECTURE = 8;            // note names stay inside the semester so far (week 8): they wrap
+const MAX_SHEET = 7;
+const PICKUP_S = 1.0;             // pauses: at the inbox, the vault, the leaf, a course hub
+const SORT_S = 0.55;
+const FILE_S = 1.8;
+const CHECK_S = 2.8;
+const TRACE_S = 1.3;              // a walked link's trace fades over this
+const CLEAR_R = 14;               // px: two agents closer than this would overlap (the arrow is ~9 × 14 px)
+const VAULT_ZONE = 22;            // px: one carrier at a time inside this radius around the vault
+const TURN_GAP = 0.25;            // s: slack between two carriers' turns at the vault
+const RETRY_S = 0.2;              // s: a carrier waiting for its turn checks again after this
+
+/* ── canvas ──────────────────────────────────────────────────────────────────────────────────── */
+
+const MAX_DPR = 3;                // backing store: the screen's pixel ratio, up to 3×,
+const MAX_BACKING = 2.4e6;        // while it stays under this many device px (else 2×)
 
 /* ── public API ──────────────────────────────────────────────────────────────────────────────── */
 
@@ -146,8 +199,6 @@ function createHeroGraph(container, animateInitially, cleanups) {
   const hero = container.closest(".hero");
   const panel = hero ? hero.querySelector(".hero-now") : null;
   const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-  const lowPower = window.matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 600;
-  const maxDpr = lowPower ? 1.5 : 2;
 
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
@@ -155,8 +206,14 @@ function createHeroGraph(container, animateInitially, cleanups) {
   if (!ctx) throw new Error("Canvas 2D is not available");
   container.appendChild(canvas);
   cleanups.push(() => canvas.remove());
-  const stats = { frames: 0, drawMsTotal: 0, drawMsMax: 0 };
-  window.__heroGraphStats = stats;
+  const stats = { frames: 0, drawMsTotal: 0, drawMsMax: 0, agents: null, layout: null };
+  const debug = debugOn();
+  if (debug) {
+    window.__heroGraphStats = stats;
+    cleanups.push(() => {
+      if (window.__heroGraphStats === stats) delete window.__heroGraphStats;
+    });
+  }
 
   const state = {
     animate: animateInitially,
@@ -249,10 +306,15 @@ function createHeroGraph(container, animateInitially, cleanups) {
   let courseLabels = [];
   let tagCands = []; // candidate label boxes per course
   let tagBoxes = [];  // the chosen one per course
-  let vaultSide = 1;  // VAULT label below (1) or above (-1) the vault
+  let vaultTag = null; // the VAULT label's box (always above the vault)
   let vaultLabel = null;
   let inboxLabel = null;
   let noteCache = new Map();
+  // layout-time obstacles shared by the label resolver and the note placer: boxes (x0, y0, x1, y1;
+  // the first nodeBoxes values are nodes, then labels) and links (node index pairs)
+  const obstacles = [];
+  const links = [];
+  let nodeBoxes = 0;
   let agentSprites = new Map();
   let vaultSprite = null;
 
@@ -273,43 +335,50 @@ function createHeroGraph(container, animateInitially, cleanups) {
     g.fillStyle = LABEL_INK;
     g.textBaseline = "middle";
     g.fillText(text, 1, h / 2 + 0.5);
-    return { img: c, w, h, tw };
+    // dw / dh: the bitmap's exact size in CSS px, so it is blitted 1:1 onto device pixels
+    return { img: c, w, h, tw, dw: c.width / state.dpr, dh: c.height / state.dpr };
   }
 
+  /** The build's arrow cursor, smaller: a dark rim and a soft dark drop shadow (no coloured glow). */
   function arrowSprite(color) {
     const s = AGENT_SCALE;
-    const pad = 4;
+    const pad = 6; // room for the shadow
+    const dpr = state.dpr;
     const w = Math.ceil(12 * s + pad * 2);
     const h = Math.ceil(18 * s + pad * 2);
     const c = document.createElement("canvas");
-    c.width = Math.ceil(w * state.dpr);
-    c.height = Math.ceil(h * state.dpr);
+    c.width = Math.ceil(w * dpr);
+    c.height = Math.ceil(h * dpr);
     const g = c.getContext("2d");
-    g.scale(state.dpr, state.dpr);
+    g.scale(dpr, dpr);
     g.translate(pad, pad);
     g.scale(s, s);
     g.beginPath();
     ARROW.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
     g.closePath();
-    g.shadowColor = color;
-    g.shadowBlur = 3;
+    // shadow sizes are in bitmap pixels (the transform does not scale them)
+    g.shadowColor = "rgba(0,0,0,0.65)";
+    g.shadowBlur = 4 * dpr;
+    g.shadowOffsetY = 1 * dpr;
     g.fillStyle = color;
     g.fill();
+    g.shadowColor = "transparent";
     g.shadowBlur = 0;
+    g.shadowOffsetY = 0;
     g.lineJoin = "round";
     g.lineWidth = 1;
-    g.strokeStyle = shade(color, 0.5);
+    g.strokeStyle = shade(color, 0.45); // the agent colour, ~55 % toward black
     g.stroke();
     g.beginPath(); // the same glossy left-edge highlight as the build agents
     g.moveTo(1.2, 2.5);
     g.lineTo(1.2, 11.5);
     g.strokeStyle = "rgba(255,255,255,0.5)";
     g.stroke();
-    return { img: c, w, h, ax: pad, ay: pad };
+    return { img: c, w, h, ax: pad, ay: pad, dw: c.width / dpr, dh: c.height / dpr };
   }
 
   /** The vault glyph: ring, centre dot, crosshair ticks and short registration hairlines. */
-  function makeVaultSprite(labelSide) {
+  function makeVaultSprite() {
     const S = 84;
     const c = document.createElement("canvas");
     c.width = Math.ceil(S * state.dpr);
@@ -321,7 +390,7 @@ function createHeroGraph(container, animateInitially, cleanups) {
     for (let k = 0; k < 4; k++) {
       const ux = k === 0 ? 1 : k === 2 ? -1 : 0;
       const uy = k === 1 ? 1 : k === 3 ? -1 : 0;
-      const end = (labelSide > 0 ? k === 1 : k === 3) ? 20 : 41; // stops short of the VAULT label
+      const end = k === 3 ? 20 : 41; // the upward hairline stops short of the VAULT label
       const grad = g.createLinearGradient(m + ux * 17, m + uy * 17, m + ux * end, m + uy * end);
       grad.addColorStop(0, "rgba(255,255,255,0.16)");
       grad.addColorStop(1, "rgba(255,255,255,0)");
@@ -350,18 +419,20 @@ function createHeroGraph(container, animateInitially, cleanups) {
   }
 
   function buildSprites() {
-    courseLabels = COURSES.map((C) => textSprite(C.label, LABEL_PX, 0.7));
-    tagCands = COURSES.map((C, c) => C.tags.map((t) => courseTagBox(c, t)));
+    courseLabels = COURSES.map((C) => textSprite(C.label, COURSE_PX, 0.7));
+    tagCands = COURSES.map((C, c) => C.tags.concat(RING_TAGS).map((t) => courseTagBox(c, t)));
     tagBoxes = tagCands.map((list) => list[0]);
     vaultLabel = textSprite("VAULT", LABEL_PX, 0.7);
     inboxLabel = textSprite("INBOX", LABEL_PX, 0.7);
+    vaultTag = vaultTagBox(0, -VAULT_TAG_Y);
     noteCache = new Map();
     // every note name a filing can show, so no text is rasterised inside the frame loop
     for (let n = 1; n <= MAX_LECTURE; n++) noteSprite(`Lecture ${n}`);
     for (let n = 1; n <= MAX_SHEET; n++) noteSprite(`Sheet ${n}`);
+    for (const C of courses) C.note = C.noteText ? noteSprite(C.noteText) : null;
     agentSprites = new Map();
     for (const i of [...CARRIERS, COORDINATOR]) agentSprites.set(i, arrowSprite(PALETTE[i]));
-    vaultSprite = makeVaultSprite(vaultSide);
+    vaultSprite = makeVaultSprite();
     for (const a of agents) a.sprite = agentSprites.get(a.colorIdx);
   }
 
@@ -382,11 +453,15 @@ function createHeroGraph(container, animateInitially, cleanups) {
     const x0 = align === "l" ? dx : align === "r" ? dx - gw : dx - gw / 2;
     return { x0, y0: dy - 6, x1: x0 + gw, y1: dy + 6 };
   }
-  const VAULT_TAG_Y = 28; // below (or above) the vault, clear of an agent parked on it
-  const vaultTagBox = (side = vaultSide) => ({ x0: -vaultLabel.tw / 2, y0: side * VAULT_TAG_Y - 6, x1: vaultLabel.tw / 2, y1: side * VAULT_TAG_Y + 6 });
+  // The VAULT label sits above the vault (an agent parked on the vault hangs below its tip); the
+  // resolver may nudge it along these offsets, but never flips it below.
+  const VAULT_TAG_Y = 28;
+  const VAULT_TAG_ALT = [[0, -28], [0, -32], [0, -24], [-8, -28], [8, -28], [-8, -32], [8, -32], [0, -36]];
+  const vaultTagBox = (dx, dy) => ({ x0: dx - vaultLabel.tw / 2, y0: dy - 6, x1: dx + vaultLabel.tw / 2, y1: dy + 6 });
   const inboxTagBox = () => ({ x0: -11 - inboxLabel.tw, y0: -6, x1: -11, y1: 6 });
 
-  /* fitting: biggest scale whose nodes and labels stay inside the square and off the facts panel - */
+  /* fitting: biggest scale whose nodes and labels stay inside the square and off the facts panel
+     (and so does the arrow of an agent parked on a node) ----------------------------------------- */
 
   function panelRect(w, h) {
     if (!panel) return null;
@@ -412,6 +487,7 @@ function createHeroGraph(container, animateInitially, cleanups) {
   function fit(w, h) {
     const PAD = 8;
     const M = 10;
+    const M_FOOT = 6; // a parked agent's arrow keeps this much off the panel
     const avoid = panelRect(w, h);
     geo.avoid = avoid;
     const ax0 = avoid ? avoid.x0 - M : 0;
@@ -419,18 +495,23 @@ function createHeroGraph(container, animateInitially, cleanups) {
     const ax1 = avoid ? avoid.x1 + M : 0;
     const ay1 = avoid ? avoid.y1 + M : 0;
     const boxes = [];
+    const feet = []; // where an agent parked on each node hangs (tested against the panel only)
     const tags = tagCands.map((list) => list[0]);
-    const vTag = vaultTagBox(1);
+    const vTag = vaultTagBox(0, -VAULT_TAG_Y);
     const iTag = inboxTagBox();
 
     const collect = (sh, s) => {
       boxes.length = 0;
+      feet.length = 0;
       const add = (x0, y0, x1, y1) => boxes.push(x0, y0, x1, y1);
       for (let i = 0; i < N; i++) {
         const r = i === VAULT ? 15 : i === INBOX ? 7 : i < LEAF0 ? 6 : 5;
         const x = sh.wx[i] * s;
         const y = sh.wy[i] * s;
         add(x - r, y - r, x + r, y + r);
+        // the arrow below and to the right of it (with a carrier's note at the inbox and the vault)
+        const note = i === VAULT || i === INBOX;
+        feet.push(x + 1, y + 1, x + (note ? FOOT_X : 11.5), y + (note ? FOOT_Y : 16.5));
       }
       for (let c = 0; c < NC; c++) {
         const x = sh.wx[HUB0 + c] * s;
@@ -449,6 +530,9 @@ function createHeroGraph(container, animateInitially, cleanups) {
       if (!avoid) return true;
       for (let k = 0; k < boxes.length; k += 4) {
         if (vx + boxes[k + 2] > ax0 && vx + boxes[k] < ax1 && vy + boxes[k + 3] > ay0 && vy + boxes[k + 1] < ay1) return false;
+      }
+      for (let k = 0; k < feet.length; k += 4) {
+        if (vx + feet[k + 2] > avoid.x0 - M_FOOT && vx + feet[k] < avoid.x1 + M_FOOT && vy + feet[k + 3] > avoid.y0 - M_FOOT && vy + feet[k + 1] < avoid.y1 + M_FOOT) return false;
       }
       return true;
     };
@@ -537,80 +621,173 @@ function createHeroGraph(container, animateInitially, cleanups) {
     geo.stubX = dx / len;
     geo.stubY = dy / len;
     resolveLabels();
+    // the filed notes' names (the still frame shows the latest one) follow the new layout
+    for (const C of courses) if (C.note && C.noteLeaf >= 0) placeNote(C, C.noteLeaf);
     stubGrad = ctx.createLinearGradient(bx[INBOX] + geo.stubX * 8, by[INBOX] + geo.stubY * 8, bx[INBOX] + geo.stubX * 74, by[INBOX] + geo.stubY * 74);
     stubGrad.addColorStop(0, "rgba(255,255,255,0.16)");
     stubGrad.addColorStop(1, "rgba(255,255,255,0)");
+    if (debug) stats.layout = layoutSnapshot(f);
+  }
+
+  /** Debug only: what the fitter and the label resolver decided (boxes in canvas px). */
+  function layoutSnapshot(f) {
+    const box = (x, y, b) => [x + b.x0, y + b.y0, x + b.x1, y + b.y1];
+    const labels = COURSES.map((C, c) => [C.label, ...box(bx[HUB0 + c], by[HUB0 + c], tagBoxes[c])]);
+    labels.push(["VAULT", ...box(bx[VAULT], by[VAULT], vaultTag)]);
+    labels.push(["INBOX", ...box(bx[INBOX], by[INBOX], inboxTagBox())]);
+    const C = recent[0] >= 0 ? courses[courseOf[recent[0]]] : null;
+    const note = C && C.note && C.noteLeaf === recent[0]
+      ? [C.noteText, bx[C.noteLeaf] + C.noteDx, by[C.noteLeaf] + C.noteDy, bx[C.noteLeaf] + C.noteDx + C.note.w, by[C.noteLeaf] + C.noteDy + C.note.h]
+      : null;
+    return {
+      w: state.w,
+      h: state.h,
+      dpr: state.dpr,
+      fit: { shape: f.si, s: +f.s.toFixed(4), vx: +f.vx.toFixed(2), vy: +f.vy.toFixed(2) },
+      panel: geo.avoid,
+      labels,
+      note,
+      nodes: Array.from(bx, (x, i) => [+x.toFixed(2), +by[i].toFixed(2)]),
+      parent: Array.from(parent),
+    };
   }
 
   /**
    * Labels are fixed-size while the map scales, so on small squares they can crowd each other.
-   * Each course label takes its first candidate spot that stays inside the canvas and clear of
-   * the panel, the other labels, every node and every link; then the VAULT label goes below the
-   * vault, or above it if that is clearer. Layout time only.
+   * The VAULT label goes above the vault (nudged along VAULT_TAG_ALT if that spot is taken); then
+   * each course label takes its first candidate spot that stays inside the canvas and clear of the
+   * panel, the other labels, every node and every link (its own list first, then a ring of spots
+   * around the hub; if none is clear, the least crowded one). Layout time only.
    */
   function resolveLabels() {
-    const w = state.w;
-    const h = state.h;
-    const avoid = geo.avoid;
-    const occ = [];
+    obstacles.length = 0;
     for (let i = 0; i < N; i++) {
       const r = i === VAULT ? 14 : i === INBOX ? 7 : i < LEAF0 ? 5 : 4.5;
-      occ.push(bx[i] - r, by[i] - r, bx[i] + r, by[i] + r);
+      obstacles.push(bx[i] - r, by[i] - r, bx[i] + r, by[i] + r);
     }
+    nodeBoxes = obstacles.length;
     const ix = bx[INBOX];
     const iy = by[INBOX];
     const ib = inboxTagBox();
-    occ.push(ix + ib.x0, iy + ib.y0, ix + ib.x1, iy + ib.y1);
-    const segs = [];
-    for (let c = 0; c < NC; c++) segs.push(VAULT, HUB0 + c);
-    segs.push(VAULT, INBOX);
-    for (let i = LEAF0; i < N; i++) segs.push(parent[i], i);
+    obstacles.push(ix + ib.x0, iy + ib.y0, ix + ib.x1, iy + ib.y1);
+    links.length = 0;
+    for (let c = 0; c < NC; c++) links.push(VAULT, HUB0 + c);
+    links.push(VAULT, INBOX);
+    for (let i = LEAF0; i < N; i++) links.push(parent[i], i);
 
-    const clearOf = (x0, y0, x1, y1) => {
-      if (x0 < 3 || y0 < 3 || x1 > w - 3 || y1 > h - 3) return false;
-      if (avoid && x1 > avoid.x0 - 6 && x0 < avoid.x1 + 6 && y1 > avoid.y0 - 6 && y0 < avoid.y1 + 6) return false;
-      for (let k = 0; k < occ.length; k += 4) {
-        if (x1 > occ[k] - 2 && x0 < occ[k + 2] + 2 && y1 > occ[k + 1] - 2 && y0 < occ[k + 3] + 2) return false;
-      }
-      for (let k = 0; k < segs.length; k += 2) {
-        const ax = bx[segs[k]];
-        const ay = by[segs[k]];
-        const dx = bx[segs[k + 1]] - ax;
-        const dy = by[segs[k + 1]] - ay;
-        const steps = Math.max(2, Math.ceil(Math.hypot(dx, dy) / 3));
-        for (let q = 0; q <= steps; q++) {
-          const px = ax + (dx * q) / steps;
-          const py = ay + (dy * q) / steps;
-          if (px > x0 - 1 && px < x1 + 1 && py > y0 - 1 && py < y1 + 1) return false;
-        }
-      }
-      return true;
-    };
-
+    const vx = bx[VAULT];
+    const vy = by[VAULT];
+    vaultTag = bestBox(vx, vy, VAULT_TAG_ALT.map(([dx, dy]) => vaultTagBox(dx, dy)));
+    obstacles.push(vx + vaultTag.x0, vy + vaultTag.y0, vx + vaultTag.x1, vy + vaultTag.y1);
     for (let c = 0; c < NC; c++) {
       const hx = bx[HUB0 + c];
       const hy = by[HUB0 + c];
-      const list = tagCands[c];
-      let pick = list[0];
-      for (const b of list) {
-        if (clearOf(hx + b.x0, hy + b.y0, hx + b.x1, hy + b.y1)) {
-          pick = b;
+      const pick = bestBox(hx, hy, tagCands[c], true);
+      tagBoxes[c] = pick;
+      obstacles.push(hx + pick.x0, hy + pick.y0, hx + pick.x1, hy + pick.y1);
+    }
+  }
+
+  /**
+   * The first box (offsets from x, y) with no penalty, else the least crowded one. With `paths`
+   * (the course labels), of the boxes with no penalty the one agents walk over least (pathCost).
+   */
+  function bestBox(x, y, list, paths = false) {
+    let best = list[0];
+    let bestP = Infinity;
+    let clear = null;
+    let clearC = Infinity;
+    for (const b of list) {
+      const p = penalty(x + b.x0, y + b.y0, x + b.x1, y + b.y1);
+      if (p === 0) {
+        if (!paths) return b;
+        const c = pathCost(x + b.x0, y + b.y0, x + b.x1, y + b.y1);
+        if (c === 0) return b;
+        if (c < clearC) {
+          clearC = c;
+          clear = b;
+        }
+      } else if (p < bestP) {
+        bestP = p;
+        best = b;
+      }
+    }
+    return clear || best;
+  }
+
+  /**
+   * How badly a box (canvas px) collides with the layout: outside the canvas or on the panel
+   * (1000 each), on a label (20), a node (4) or a link (1 each). 0 = clear. No allocations.
+   */
+  function penalty(x0, y0, x1, y1) {
+    let p = 0;
+    if (x0 < 3 || y0 < 3 || x1 > state.w - 3 || y1 > state.h - 3) p += 1000;
+    const av = geo.avoid;
+    if (av && x1 > av.x0 - 6 && x0 < av.x1 + 6 && y1 > av.y0 - 6 && y0 < av.y1 + 6) p += 1000;
+    const occ = obstacles;
+    for (let k = 0; k < occ.length; k += 4) {
+      if (x1 > occ[k] - 2 && x0 < occ[k + 2] + 2 && y1 > occ[k + 1] - 2 && y0 < occ[k + 3] + 2) p += k < nodeBoxes ? 4 : 20;
+    }
+    for (let k = 0; k < links.length; k += 2) {
+      const ax = bx[links[k]];
+      const ay = by[links[k]];
+      const dx = bx[links[k + 1]] - ax;
+      const dy = by[links[k + 1]] - ay;
+      // quick reject: the link's bounding box misses the box
+      if (Math.max(ax, ax + dx) < x0 - 1 || Math.min(ax, ax + dx) > x1 + 1 || Math.max(ay, ay + dy) < y0 - 1 || Math.min(ay, ay + dy) > y1 + 1) continue;
+      const steps = Math.max(2, Math.ceil(Math.hypot(dx, dy) / 2));
+      for (let q = 0; q <= steps; q++) {
+        const px = ax + (dx * q) / steps;
+        const py = ay + (dy * q) / steps;
+        if (px > x0 - 1 && px < x1 + 1 && py > y0 - 1 && py < y1 + 1) {
+          p += 1;
           break;
         }
       }
-      tagBoxes[c] = pick;
-      occ.push(hx + pick.x0, hy + pick.y0, hx + pick.x1, hy + pick.y1);
     }
-    let side = 1;
-    const below = vaultTagBox(1);
-    if (!clearOf(bx[VAULT] + below.x0, by[VAULT] + below.y0, bx[VAULT] + below.x1, by[VAULT] + below.y1)) {
-      const above = vaultTagBox(-1);
-      if (clearOf(bx[VAULT] + above.x0, by[VAULT] + above.y0, bx[VAULT] + above.x1, by[VAULT] + above.y1)) side = -1;
+    return p;
+  }
+
+  /**
+   * How long agents would cover a box (canvas px) on their way: px of path from which an agent's
+   * arrow (and the note a carrier drags) would overlap it, as they hang below and to the right of
+   * the line. The orbit ring (the coordinator's rounds) and the links at the vault count fully,
+   * a leaf's spoke a quarter (one filing in six walks it). Layout time only.
+   */
+  function pathCost(x0, y0, x1, y1) {
+    let c = 0;
+    for (let k = 0; k < links.length; k += 2) {
+      const ax = bx[links[k]];
+      const ay = by[links[k]];
+      const dx = bx[links[k + 1]] - ax;
+      const dy = by[links[k + 1]] - ay;
+      if (Math.max(ax, ax + dx) < x0 - FOOT_X || Math.min(ax, ax + dx) > x1 || Math.max(ay, ay + dy) < y0 - FOOT_Y || Math.min(ay, ay + dy) > y1) continue;
+      const len = Math.hypot(dx, dy);
+      const steps = Math.max(2, Math.ceil(len));
+      const w = (links[k] === VAULT ? 1 : 0.25) * (len / steps); // per px of path
+      for (let q = 0; q <= steps; q++) {
+        if (footOver(ax + (dx * q) / steps, ay + (dy * q) / steps, x0, y0, x1, y1, FOOT.length)) c += w;
+      }
     }
-    if (side !== vaultSide) {
-      vaultSide = side;
-      vaultSprite = makeVaultSprite(vaultSide);
+    // the orbit ring: the coordinator's rounds (it carries no note)
+    const rx = geo.rx;
+    const ry = geo.ry;
+    const steps = Math.ceil(Math.PI * (rx + ry));
+    const w = (Math.PI * (rx + ry)) / steps;
+    for (let q = 0; q < steps; q++) {
+      const a = (q / steps) * TAU;
+      if (footOver(bx[VAULT] + rx * Math.cos(a), by[VAULT] + ry * Math.sin(a), x0, y0, x1, y1, FOOT.length - 4)) c += w;
     }
+    return c;
+  }
+
+  /** Would an agent at (px, py) cover the box? (the first n values of FOOT) */
+  function footOver(px, py, x0, y0, x1, y1, n) {
+    if (px + 1.5 >= x1 || px + FOOT_X <= x0 || py + 1.5 >= y1 || py + FOOT_Y <= y0) return false;
+    for (let k = 0; k < n; k += 4) {
+      if (px + FOOT[k] < x1 && px + FOOT[k + 2] > x0 && py + FOOT[k + 1] < y1 && py + FOOT[k + 3] > y0) return true;
+    }
+    return false;
   }
 
   /* simulation state --------------------------------------------------------------------------- */
@@ -627,14 +804,18 @@ function createHeroGraph(container, animateInitially, cleanups) {
   const litAt = new Float32Array(N).fill(-1e4);
   const litCol = new Int8Array(N);
   const recent = [-1, -1, -1]; // the last three filed leaves (the still frame keeps them lit)
+  // the trace a carrier leaves on the links it walked with a note, per link (indexed by its child node)
+  const traceAt = new Float32Array(N).fill(-1e4);
+  const traceCol = new Int8Array(N);
 
   const courses = COURSES.map((C, c) => ({
-    busy: -1,
+    busy: -1,         // the carrier filing into this course (from the vault until it is back past it)
     pipAt: -1e4,
     pingAt: -1e4,
     pingCol: COORDINATOR,
     noteAt: -1e4,
     noteLeaf: -1,
+    noteText: "",
     note: null,
     noteDx: 0,        // the note name's offset from its leaf (picked once, clear of labels)
     noteDy: 0,
@@ -697,7 +878,11 @@ function createHeroGraph(container, animateInitially, cleanups) {
       arcFrom: 0,
       arcTo: 0,
       arcEnd: -1e4, // when the last walk along the orbit ended (its trail fades after)
+      releaseAt: 0, // on its way back to the inbox: when it is past the vault (its course frees up)
       hub: 0,
+      legK: 0,      // the route segment it is on, and how far along it (0…1)
+      legU: 0,
+      legDone: 0,   // segments of this trip already handed to the trace
       x: 0,
       y: 0,
     };
@@ -706,8 +891,8 @@ function createHeroGraph(container, animateInitially, cleanups) {
   }
 
   // The opening tableau (also the still frame when animations are off at load): one carrier at
-  // the inbox picking up a note, one that just filed into A&D, the coordinator checking in on
-  // Programming.
+  // the inbox picking up a note, one that just filed a lecture into A&D (its name shows in the
+  // still frame), the coordinator checking in on Programming.
   {
     const c0 = makeAgent(CARRIERS[0], "carrier");
     c0.task = PICKUP;
@@ -715,13 +900,19 @@ function createHeroGraph(container, animateInitially, cleanups) {
     c0.carrying = true;
     c0.until = 1.5;
     const c1 = makeAgent(CARRIERS[1], "carrier");
-    const filedAD = leafOf(1, firstSlot(1, 0));
+    const slotAD = firstSlot(1, 0);
+    const filedAD = leafOf(1, slotAD);
     c1.task = FILE;
     c1.node = filedAD;
+    c1.course = 1;
+    c1.slot = slotAD;
     c1.until = 0.8;
+    courses[1].busy = c1.id;
     litAt[filedAD] = -0.4;
     litCol[filedAD] = CARRIERS[1];
     courses[1].pipAt = -0.4;
+    courses[1].noteLeaf = filedAD; // noteAt stays in the past: the live map does not replay it
+    courses[1].noteText = nextNoteName(courses[1]);
     const k = makeAgent(COORDINATOR, "coordinator");
     k.task = CHECK;
     k.node = HUB0 + 3;
@@ -737,6 +928,15 @@ function createHeroGraph(container, animateInitially, cleanups) {
     recent[0] = filedAD;
     recent[1] = l1;
     recent[2] = l2;
+  }
+
+  /** The course's next note name: lecture and sheet take turns, each wraps inside the semester so far. */
+  function nextNoteName(C) {
+    const lecture = C.next++ % 2 === 0;
+    const text = lecture ? `Lecture ${C.lecture++}` : `Sheet ${C.sheet++}`;
+    if (C.lecture > MAX_LECTURE) C.lecture = 1;
+    if (C.sheet > MAX_SHEET) C.sheet = 1;
+    return text;
   }
 
   /** The n-th live leaf slot of a course (for the opening tableau). */
@@ -771,13 +971,124 @@ function createHeroGraph(container, animateInitially, cleanups) {
   function startTrip(a, from, to, task) {
     route(a, from, to);
     let len = 0;
-    for (let k = 0; k < a.n - 1; k++) len += Math.hypot(bx[a.path[k + 1]] - bx[a.path[k]], by[a.path[k + 1]] - by[a.path[k]]);
+    for (let k = 0; k < a.n - 1; k++) len += dist(a.path[k], a.path[k + 1]);
     a.phase = TRAVEL;
     a.task = task;
     a.t0 = simT;
-    a.dur = len / (CRUISE * geo.s) + ACCEL_S;
-    a.accel = Math.min(0.45, ACCEL_S / a.dur);
+    a.dur = tripDur(len);
+    a.accel = tripAccel(a.dur);
     a.node = to;
+    a.legK = 0;
+    a.legU = 0;
+    a.legDone = 0;
+  }
+
+  const dist = (i, j) => Math.hypot(bx[j] - bx[i], by[j] - by[i]);
+  const tripDur = (len) => len / (CRUISE * geo.s) + ACCEL_S;
+  const tripAccel = (dur) => Math.min(0.45, ACCEL_S / dur);
+  /** Seconds after setting off at which a trip of len px has covered d px. */
+  function tripTimeAt(len, d) {
+    const dur = tripDur(len);
+    if (d <= 0) return 0;
+    if (d >= len) return dur;
+    return invProfile(d / len, tripAccel(dur)) * dur;
+  }
+
+  /* turns: the inbox and the vault hold one carrier at a time ---------------------------------- */
+
+  // [winS, winE]: when an agent is (or will be) within VAULT_ZONE px of the vault, set by vaultWindow()
+  let winS = 0;
+  let winE = 0;
+  /** Seconds a carrier needs to get VAULT_ZONE px away from the vault once it sets off for a course. */
+  const leaveS = () => tripTimeAt((RING + LEAF_DIST[1]) * geo.s, VAULT_ZONE);
+
+  /** The stretch of time agent o spends at the vault on its current plan; false if none. */
+  function vaultWindow(o) {
+    if (o.role !== "carrier") return false;
+    if (o.phase === PAUSE) {
+      if (o.task !== SORT) return false;
+      winS = -1e9;
+      winE = Math.max(o.until, simT) + leaveS();
+      return true;
+    }
+    if (o.phase !== TRAVEL) return false;
+    let total = 0;
+    let dV = -1;
+    for (let k = 0; k < o.n; k++) {
+      if (o.path[k] === VAULT) dV = total;
+      if (k < o.n - 1) total += dist(o.path[k], o.path[k + 1]);
+    }
+    if (dV < 0 || total <= 0) return false;
+    winS = dV - VAULT_ZONE <= 0 ? -1e9 : o.t0 + invProfile((dV - VAULT_ZONE) / total, o.accel) * o.dur;
+    winE = dV + VAULT_ZONE >= total
+      ? o.t0 + o.dur + (o.task === TO_VAULT ? SORT_S + leaveS() : 0)
+      : o.t0 + invProfile((dV + VAULT_ZONE) / total, o.accel) * o.dur;
+    return true;
+  }
+
+  /** Is the vault free of every other carrier during [s, e] (absolute sim time)? */
+  function vaultFree(a, s, e) {
+    for (let n = 0; n < agents.length; n++) {
+      const o = agents[n];
+      if (o === a || !vaultWindow(o)) continue;
+      if (s < winE + TURN_GAP && winS < e + TURN_GAP) return false;
+    }
+    return true;
+  }
+
+  /** With its note, inbox → vault: it may set off once its stay at the vault clashes with no one's. */
+  function mayLeaveInbox(a) {
+    const len = dist(INBOX, VAULT);
+    return vaultFree(a, simT + tripTimeAt(len, len - VAULT_ZONE), simT + tripDur(len) + SORT_S + leaveS());
+  }
+
+  /**
+   * When carrier o, still on the inbound side (waiting at the inbox, walking to the vault, sorting
+   * there or just setting off for its course), will be VAULT_ZONE px past the vault on its way out;
+   * -Infinity once it is (or for any other task). At the inbox this is a plain prediction from the
+   * seeded schedule: it sets off once it has a note and its pause is over (nothing else can hold it
+   * back, as the carrier asking waits at its leaf until then).
+   */
+  function outboundClearAt(o) {
+    if (o.phase === PAUSE && o.task === PICKUP) {
+      let t = Math.max(o.until, simT);
+      if (!o.carrying) t = Math.max(t, Math.max(o.pickAt, qn > 0 ? simT : qNext) + 0.5);
+      return t + tripDur(dist(INBOX, VAULT)) + SORT_S + leaveS();
+    }
+    if (o.task !== TO_VAULT && o.task !== SORT && o.task !== TO_LEAF) return -Infinity;
+    return vaultWindow(o) ? winE : -Infinity;
+  }
+
+  /**
+   * Leaf → hub → vault → inbox. The inbox–vault link is single track: the carrier only sets off
+   * once the other one has the link and the vault behind it (gone past the vault toward its own
+   * course) by the time it gets there, so the two never meet head-on on that line, and the inbox is
+   * its own when it arrives. Its pass over the vault must also clash with no one's stay there.
+   */
+  function mayLeaveLeaf(a) {
+    const hub = parent[a.node];
+    const dV = dist(a.node, hub) + dist(hub, VAULT);
+    const len = dV + dist(VAULT, INBOX);
+    const passS = simT + tripTimeAt(len, dV - VAULT_ZONE);
+    const passE = simT + tripTimeAt(len, dV + VAULT_ZONE);
+    if (!vaultFree(a, passS, passE)) return false;
+    const dH = dist(a.node, hub);
+    const hubS = simT + tripTimeAt(len, dH - CLEAR_R);
+    const hubE = simT + tripTimeAt(len, dH + CLEAR_R);
+    for (let n = 0; n < agents.length; n++) {
+      const o = agents[n];
+      if (o === a) continue;
+      if (o.role === "coordinator") {
+        // it is checking this course's hub (or will be when the carrier passes it): let it finish
+        if (o.hub !== courseOf[a.node]) continue;
+        if (o.phase === PAUSE && o.task === CHECK && o.until + 1.0 > hubS) return false;
+        if (o.phase === ARC && o.t0 + o.dur < hubE + TURN_GAP) return false;
+        continue;
+      }
+      if (o.phase !== PAUSE && o.task === TO_INBOX) return false;
+      if (outboundClearAt(o) + TURN_GAP > passS) return false;
+    }
+    return true;
   }
 
   function startArc(a) {
@@ -799,15 +1110,28 @@ function createHeroGraph(container, animateInitially, cleanups) {
     a.node = HUB0 + to;
   }
 
+  /** The next course in the seeded order that no other carrier is filing into or still walking back
+   * from (they would meet head-on on its spoke); it also skips the hub the coordinator is checking
+   * or walking to (they would cross on it), unless nothing else is free. */
   function pickCourse(a) {
-    for (let k = 0; k < order.length; k++) {
-      const c = order[(orderPos + k) % order.length];
-      if (courses[c].busy < 0 || courses[c].busy === a.id) {
-        orderPos = (orderPos + k + 1) % order.length;
-        return c;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let k = 0; k < order.length; k++) {
+        const c = order[(orderPos + k) % order.length];
+        if ((courses[c].busy < 0 || courses[c].busy === a.id) && (pass > 0 || !coordinatorAt(c))) {
+          orderPos = (orderPos + k + 1) % order.length;
+          return c;
+        }
       }
     }
     return a.id % NC;
+  }
+
+  function coordinatorAt(c) {
+    for (let n = 0; n < agents.length; n++) {
+      const o = agents[n];
+      if (o.role === "coordinator" && o.hub === c && (o.phase === ARC || o.task === CHECK)) return true;
+    }
+    return false;
   }
 
   function freeSlot(c) {
@@ -841,76 +1165,113 @@ function createHeroGraph(container, animateInitially, cleanups) {
     C.pipAt = simT;
     C.noteAt = simT;
     C.noteLeaf = li;
-    const lecture = C.next++ % 2 === 0;
-    C.note = noteSprite(lecture ? `Lecture ${C.lecture++}` : `Sheet ${C.sheet++}`);
+    C.noteText = nextNoteName(C);
+    C.note = noteSprite(C.noteText);
     placeNote(C, li);
-    if (C.lecture > MAX_LECTURE) C.lecture = 1;
-    if (C.sheet > MAX_SHEET) C.sheet = 1;
-    C.busy = -1;
-    a.carrying = false;
+    a.carrying = false; // the course stays busy until the carrier is back past the vault
     recent[2] = recent[1];
     recent[1] = recent[0];
     recent[0] = li;
   }
 
-  /** Where the filed note's name goes: beside its leaf, inside the canvas, off labels and the panel. */
+  /**
+   * Where the filed note's name goes: the first of NOTE_SPOTS around its leaf (beside it on the
+   * outward side first, below it last; above / below slide sideways to stay inside the canvas)
+   * that is clear of the canvas edge, the panel, labels, nodes, links and the carrier that just
+   * parked on the leaf (its arrow hangs below and to the right of it), else the least crowded one
+   * (worst: under that arrow, then on a label, then right on another dot). No allocations.
+   */
   function placeNote(C, li) {
     const spr = C.note;
     const lx = bx[li];
     const ly = by[li];
-    const out = lx >= bx[parent[li]] ? 1 : -1;
-    const cands = [
-      out > 0 ? 7 : -7 - spr.w, -spr.h / 2,
-      out > 0 ? -7 - spr.w : 7, -spr.h / 2,
-      -spr.w / 2, -9 - spr.h,
-      -spr.w / 2, 8,
-    ];
-    const avoid = geo.avoid;
-    for (let k = 0; k < cands.length; k += 2) {
-      const x0 = lx + cands[k];
-      const y0 = ly + cands[k + 1];
-      const x1 = x0 + spr.w;
-      const y1 = y0 + spr.h;
-      let ok = x0 >= 3 && y0 >= 3 && x1 <= state.w - 3 && y1 <= state.h - 3;
-      if (ok && avoid && x1 > avoid.x0 && x0 < avoid.x1 && y1 > avoid.y0 && y0 < avoid.y1) ok = false;
-      for (let c = 0; ok && c < NC; c++) {
-        const b = tagBoxes[c];
-        const hx = bx[HUB0 + c];
-        const hy = by[HUB0 + c];
-        if (x1 > hx + b.x0 - 3 && x0 < hx + b.x1 + 3 && y1 > hy + b.y0 - 2 && y0 < hy + b.y1 + 2) ok = false;
+    const hub = parent[li];
+    const out = lx >= bx[hub] ? 1 : -1;
+    const rl = Math.hypot(lx - bx[hub], ly - by[hub]) || 1;
+    const ux = (lx - bx[hub]) / rl; // outward from the hub through the leaf
+    const uy = (ly - by[hub]) / rl;
+    // the name's ink sits inside its sprite: 1 px each side, ~3 px above and below
+    const iw = spr.w - 2;
+    const ih = spr.h - 6;
+    const ext = Math.abs(ux) * iw * 0.5 + Math.abs(uy) * ih * 0.5; // the ink's half-depth along u
+    let bestP = Infinity;
+    for (let k = 0; k < NOTE_SPOTS.length; k++) {
+      const spot = NOTE_SPOTS[k];
+      const kind = spot[0];
+      const right = spot[1] * out > 0; // beside / diagonal: on the leaf's right
+      let x0; // the ink box's corner, relative to the leaf
+      let y0;
+      if (kind === 0) {
+        x0 = right ? 8 : -8 - iw;
+        y0 = -ih / 2 + spot[2];
+      } else if (kind === 1) {
+        x0 = ux * (spot[1] + ext) - iw / 2;
+        y0 = uy * (spot[1] + ext) - ih / 2;
+      } else if (kind === 2) {
+        x0 = right ? 5 : -5 - iw;
+        y0 = spot[2] < 0 ? -9 - ih : 9;
+      } else if (kind === 4) {
+        // the box's nearest edge `gap` px from the leaf in that direction
+        const a = spot[2] * 22.5 * DEG;
+        const dx = Math.cos(a);
+        const dy = Math.sin(a);
+        const r = spot[1] + Math.min(Math.abs(dx) > 1e-6 ? iw / 2 / Math.abs(dx) : 1e9, Math.abs(dy) > 1e-6 ? ih / 2 / Math.abs(dy) : 1e9);
+        x0 = dx * r - iw / 2;
+        y0 = dy * r - ih / 2;
+      } else {
+        x0 = Math.max(4, Math.min(state.w - 4 - iw, lx - iw / 2)) - lx;
+        y0 = spot[2] < 0 ? -12 - ih : 11;
       }
-      for (let c = 0; ok && c < NC; c++) {
-        // keep off the other hubs and their rings
-        const hx = bx[HUB0 + c];
-        const hy = by[HUB0 + c];
-        if (x1 > hx - 6 && x0 < hx + 6 && y1 > hy - 6 && y0 < hy + 6) ok = false;
-      }
-      if (ok || k === cands.length - 2) {
-        C.noteDx = ok ? cands[k] : cands[0];
-        C.noteDy = ok ? cands[k + 1] : cands[1];
-        return;
+      let p = penalty(lx + x0, ly + y0, lx + x0 + iw, ly + y0 + ih);
+      p += 12 * dotsUnder(li, lx + x0, ly + y0, lx + x0 + iw, ly + y0 + ih);
+      if (underArrow(x0, y0, x0 + iw, y0 + ih)) p += 50;
+      if (p < bestP) {
+        bestP = p;
+        C.noteDx = x0 - 1;
+        C.noteDy = y0 - 3;
+        if (p === 0) return;
       }
     }
   }
 
+  /** A returning carrier is back past the vault: its course is free for the next filing. */
+  function releaseCourse(a) {
+    if (a.course >= 0 && courses[a.course].busy === a.id) courses[a.course].busy = -1;
+  }
+
+  /** How many dots (other nodes, as drawn, plus 1.5 px for their breathing) a box would cover. */
+  function dotsUnder(skip, x0, y0, x1, y1) {
+    let n = 0;
+    for (let i = 0; i < N; i++) {
+      if (i === skip) continue;
+      const r = (i === VAULT ? 6 : i === INBOX ? 4 : i < LEAF0 ? HUB_R : LEAF_R + 0.4) + 1.5;
+      const dx = bx[i] < x0 ? x0 - bx[i] : bx[i] > x1 ? bx[i] - x1 : 0;
+      const dy = by[i] < y0 ? y0 - by[i] : by[i] > y1 ? by[i] - y1 : 0;
+      if (dx * dx + dy * dy < r * r) n++;
+    }
+    return n;
+  }
+
   function arrive(a) {
+    if (a.phase === TRAVEL && a.carrying) traceTrip(a, a.n - 1); // the rest of the route it walked
     a.phase = PAUSE;
     if (a.task === TO_INBOX) {
+      releaseCourse(a);
       a.task = PICKUP;
-      a.until = simT + 1.0;
+      a.until = simT + PICKUP_S;
       a.pickAt = simT + 0.4;
     } else if (a.task === TO_VAULT) {
       a.task = SORT;
-      a.until = simT + 0.55;
+      a.until = simT + SORT_S;
     } else if (a.task === TO_LEAF) {
       a.task = FILE;
       file(a);
-      a.until = simT + 1.8;
+      a.until = simT + FILE_S;
     } else if (a.task === ROUND) {
       a.task = CHECK;
       a.arcEnd = simT;
       courses[a.hub].pingAt = simT;
-      a.until = simT + 2.8;
+      a.until = simT + CHECK_S;
     }
   }
 
@@ -918,6 +1279,10 @@ function createHeroGraph(container, animateInitially, cleanups) {
     if (a.task === PICKUP) {
       if (!a.carrying) {
         a.until = simT + 0.25; // nothing to take yet: wait for the next note
+        return;
+      }
+      if (!mayLeaveInbox(a)) {
+        a.until = simT + RETRY_S; // the other carrier has the vault: wait at the inbox
         return;
       }
       startTrip(a, INBOX, VAULT, TO_VAULT);
@@ -928,6 +1293,15 @@ function createHeroGraph(container, animateInitially, cleanups) {
       a.slot = freeSlot(c);
       startTrip(a, VAULT, leafOf(c, a.slot), TO_LEAF);
     } else if (a.task === FILE) {
+      if (!mayLeaveLeaf(a)) {
+        a.until = simT + RETRY_S; // the inbox or the vault is the other carrier's: stay at the leaf
+        return;
+      }
+      // the course stays its own until it is back past the vault, so no one is sent down the
+      // spoke it is walking up
+      const hub = parent[a.node];
+      const dV = dist(a.node, hub) + dist(hub, VAULT);
+      a.releaseAt = simT + tripTimeAt(dV + dist(VAULT, INBOX), dV + VAULT_ZONE);
       startTrip(a, a.node, INBOX, TO_INBOX);
     } else if (a.task === CHECK) {
       startArc(a);
@@ -955,6 +1329,7 @@ function createHeroGraph(container, animateInitially, cleanups) {
     for (let n = 0; n < agents.length; n++) {
       const a = agents[n];
       if (a.phase !== PAUSE) {
+        if (a.task === TO_INBOX && simT >= a.releaseAt) releaseCourse(a);
         if (simT - a.t0 >= a.dur) arrive(a);
         continue;
       }
@@ -967,10 +1342,44 @@ function createHeroGraph(container, animateInitially, cleanups) {
     }
   }
 
-  /** Still frame: every travelling agent finishes its trip at once (parked at a node). */
+  /** Hands the route segments before segment `upTo` to the trace (each one once per trip). */
+  function traceTrip(a, upTo) {
+    for (; a.legDone < upTo && a.legDone < a.n - 1; a.legDone++) {
+      const i = a.path[a.legDone];
+      const j = a.path[a.legDone + 1];
+      const child = parent[j] === i ? j : i; // a link is stored at its child node
+      traceAt[child] = simT;
+      traceCol[child] = a.colorIdx;
+    }
+  }
+
+  const parkedAt = (a, node) => agents.some((o) => o !== a && o.phase === PAUSE && o.node === node);
+
+  /**
+   * Still frame: every travelling agent finishes its trip at once (parked at a node). If another
+   * agent is already parked where the trip ends, it stays where the trip began instead (as if it
+   * had not set off yet), so two agents never share a node in the still.
+   */
   function settle() {
     for (const a of agents) {
-      if (a.phase !== PAUSE) arrive(a);
+      if (a.phase === TRAVEL && parkedAt(a, a.node) && !parkedAt(a, a.path[0])) {
+        a.phase = PAUSE;
+        a.node = a.path[0];
+        if (a.task === TO_VAULT) {
+          a.task = PICKUP; // still holding its note
+          a.until = simT + PICKUP_S;
+        } else if (a.task === TO_LEAF) {
+          a.task = SORT;
+          a.until = simT + SORT_S;
+          if (a.course >= 0 && courses[a.course].busy === a.id) courses[a.course].busy = -1;
+        } else {
+          a.task = FILE;
+          a.until = simT + FILE_S;
+          if (a.course >= 0 && courses[a.course].busy < 0) courses[a.course].busy = a.id;
+        }
+      } else if (a.phase !== PAUSE) {
+        arrive(a);
+      }
       if (a.task === PICKUP && !a.carrying && qn > 0) {
         takeNote();
         a.carrying = true;
@@ -982,16 +1391,24 @@ function createHeroGraph(container, animateInitially, cleanups) {
 
   /* positions ---------------------------------------------------------------------------------- */
 
-  const pointer = { x: 0, y: 0, active: false };
+  // The canvas origin on screen is cached; scroll, resize and layout changes mark it dirty (and it
+  // is refreshed once a second regardless), so the frame loop never forces a layout read.
+  const pointer = { x: 0, y: 0, active: false, left: 0, top: 0, dirty: true, readAt: -1e4 };
 
   function updatePositions(dt) {
     let px = 0;
     let py = 0;
     let usePointer = false;
     if (pointer.active && !still) {
-      const r = canvas.getBoundingClientRect();
-      px = pointer.x - r.left;
-      py = pointer.y - r.top;
+      if (pointer.dirty || clock - pointer.readAt > 1) {
+        const r = canvas.getBoundingClientRect();
+        pointer.left = r.left;
+        pointer.top = r.top;
+        pointer.dirty = false;
+        pointer.readAt = clock;
+      }
+      px = pointer.x - pointer.left;
+      py = pointer.y - pointer.top;
       usePointer = px > -PUSH_R && py > -PUSH_R && px < state.w + PUSH_R && py < state.h + PUSH_R;
     }
     const k = 1 - Math.exp(-dt * 4);
@@ -1054,6 +1471,9 @@ function createHeroGraph(container, animateInitially, cleanups) {
     while (k < n - 2 && acc + a.seg[k] < d) acc += a.seg[k++];
     const L = a.seg[k] || 1;
     const into = d - acc;
+    a.legK = k;
+    a.legU = Math.min(1, Math.max(0, into / L));
+    if (a.carrying) traceTrip(a, k);
     // round the corner through the node at either end of this segment
     if (k > 0 && into < cornerR(a, k)) return corner(a, k, into + cornerR(a, k));
     if (k + 1 < n - 1 && L - into < cornerR(a, k + 1)) return corner(a, k + 1, cornerR(a, k + 1) - (L - into));
@@ -1191,6 +1611,34 @@ function createHeroGraph(container, animateInitially, cleanups) {
     }
     ctx.stroke();
 
+    // the route a carrier just walked with its note (inbox → vault → hub → leaf): a faint trace in
+    // its colour that fades behind it, and the leg it is on, up to where it is
+    if (live) {
+      for (let i = 1; i < N; i++) {
+        const age = simT - traceAt[i];
+        if (age < 0 || age >= TRACE_S) continue;
+        const pa = parent[i];
+        ctx.globalAlpha = TRACE_ALPHA * (1 - easeInOut(age / TRACE_S));
+        ctx.strokeStyle = PALETTE[traceCol[i]];
+        ctx.beginPath();
+        ctx.moveTo(X[pa], Y[pa]);
+        ctx.lineTo(X[i], Y[i]);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = TRACE_ALPHA;
+      for (let n = 0; n < agents.length; n++) {
+        const a = agents[n];
+        if (a.phase !== TRAVEL || !a.carrying || a.legU <= 0) continue;
+        const i = a.path[a.legK];
+        const j = a.path[a.legK + 1];
+        ctx.strokeStyle = a.color;
+        ctx.beginPath();
+        lineOut(X[i], Y[i], X[j], Y[j], a.legU);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // leaves: resting dots (one fill), then the colour of recent filings on top
     ctx.fillStyle = INK;
     ctx.globalAlpha = LEAF_ALPHA;
@@ -1282,18 +1730,22 @@ function createHeroGraph(container, animateInitially, cleanups) {
       }
     }
 
-    // labels and status pips
+    // labels and status pips; every text sprite's corner sits on a device pixel (snap), so it is
+    // blitted 1:1 and never resampled soft
+    const dpr = state.dpr;
+    const snap = (v) => Math.round(v * dpr) / dpr;
     for (let c = 0; c < NC; c++) {
       const a = gp(0.8 + 0.13 * c, 0.45);
       if (a <= 0) continue;
       const box = tagBoxes[c];
       const hx = bx[HUB0 + c];
       const hy = by[HUB0 + c];
-      const lx = Math.round(hx + box.x0);
+      const tx = snap(hx + box.x0 + PIP_W - 1); // the text; the pip keeps its place in front of it
+      const lx = tx - PIP_W + 1;
       const ly = hy + (box.y0 + box.y1) / 2;
       const spr = courseLabels[c];
-      ctx.globalAlpha = a * LABEL_ALPHA;
-      ctx.drawImage(spr.img, lx + PIP_W - 1, Math.round(ly - spr.h / 2), spr.w, spr.h);
+      ctx.globalAlpha = a * COURSE_ALPHA;
+      ctx.drawImage(spr.img, tx, snap(ly - spr.h / 2), spr.dw, spr.dh);
       const age = simT - courses[c].pipAt;
       let g = age >= 0 ? Math.exp(-age / PIP_TAU) : 0;
       if (still && recent[0] >= 0 && courseOf[recent[0]] === c) g = Math.max(g, 0.7);
@@ -1307,15 +1759,17 @@ function createHeroGraph(container, animateInitially, cleanups) {
     const vlA = gp(0.3, 0.4);
     if (vlA > 0) {
       ctx.globalAlpha = vlA * LABEL_ALPHA;
-      ctx.drawImage(vaultLabel.img, Math.round(vx - vaultLabel.w / 2), Math.round(vy + vaultSide * VAULT_TAG_Y - vaultLabel.h / 2), vaultLabel.w, vaultLabel.h);
+      const ly = vy + (vaultTag.y0 + vaultTag.y1) / 2;
+      ctx.drawImage(vaultLabel.img, snap(vx + vaultTag.x0 - 1), snap(ly - vaultLabel.h / 2), vaultLabel.dw, vaultLabel.dh);
     }
     const ilA = gp(1.45, 0.4);
     if (ilA > 0) {
       ctx.globalAlpha = ilA * LABEL_ALPHA;
-      ctx.drawImage(inboxLabel.img, Math.round(X[INBOX] - 11 - inboxLabel.tw - 1), Math.round(Y[INBOX] - inboxLabel.h / 2), inboxLabel.w, inboxLabel.h);
+      ctx.drawImage(inboxLabel.img, snap(X[INBOX] - 11 - inboxLabel.tw - 1), snap(Y[INBOX] - inboxLabel.h / 2), inboxLabel.dw, inboxLabel.dh);
     }
 
-    // the name of the note that was just filed, briefly, beside its new leaf
+    // the name of the note that was just filed, briefly, beside its new leaf (the still frame
+    // keeps the latest one, so the picture also says that an agent just filed a note)
     if (live) {
       for (let c = 0; c < NC; c++) {
         const C = courses[c];
@@ -1324,26 +1778,33 @@ function createHeroGraph(container, animateInitially, cleanups) {
         const a = Math.min(1, age / 0.35) * Math.min(1, (3.6 - age) / 0.9);
         const i = C.noteLeaf;
         const spr = C.note;
-        ctx.globalAlpha = a * 0.62;
-        ctx.drawImage(spr.img, Math.round(X[i] + C.noteDx), Math.round(Y[i] + C.noteDy), spr.w, spr.h);
+        ctx.globalAlpha = a * NOTE_ALPHA;
+        ctx.drawImage(spr.img, snap(X[i] + C.noteDx), snap(Y[i] + C.noteDy), spr.dw, spr.dh);
+      }
+    } else if (still && recent[0] >= 0) {
+      const C = courses[courseOf[recent[0]]];
+      if (C.note && C.noteLeaf === recent[0]) {
+        const i = C.noteLeaf;
+        ctx.globalAlpha = NOTE_ALPHA;
+        ctx.drawImage(C.note.img, snap(X[i] + C.noteDx), snap(Y[i] + C.noteDy), C.note.dw, C.note.dh);
       }
     }
 
-    // agents (and the note a carrier is dragging)
+    // agents (and the note a carrier is dragging), on device pixels so slow motion never steps
     const agA = gp(1.7, 0.5);
     if (agA > 0) {
       for (let n = 0; n < agents.length; n++) {
         const a = agents[n];
-        const x = Math.round(a.x + 1.5);
-        const y = Math.round(a.y + 1.5);
+        const s = a.sprite;
+        const sx = snap(a.x + 1.5 - s.ax); // the bitmap's corner on a device pixel
+        const sy = snap(a.y + 1.5 - s.ay);
         if (a.carrying) {
           ctx.globalAlpha = agA * 0.9;
           ctx.fillStyle = "#e9ebef";
-          ctx.fillRect(x + 9, y + 12, 4, 5);
+          ctx.fillRect(sx + s.ax + 9, sy + s.ay + 12, 4, 5);
         }
         ctx.globalAlpha = agA;
-        const s = a.sprite;
-        ctx.drawImage(s.img, x - s.ax, y - s.ay, s.w, s.h);
+        ctx.drawImage(s.img, sx, sy, s.dw, s.dh);
       }
     }
     ctx.globalAlpha = 1;
@@ -1382,13 +1843,28 @@ function createHeroGraph(container, animateInitially, cleanups) {
     stats.frames++;
     stats.drawMsTotal += ms;
     if (ms > stats.drawMsMax) stats.drawMsMax = ms;
+    if (debug) recordAgents();
   }
 
+  /** Debug only: where the agents are (tests check that they never stack). */
+  function recordAgents() {
+    const p = stats.agents || (stats.agents = new Float32Array(agents.length * 2));
+    for (let k = 0; k < agents.length; k++) {
+      p[k * 2] = agents[k].x;
+      p[k * 2 + 1] = agents[k].y;
+    }
+  }
+
+  // Pacing: a frame is due every FRAME_MS. On a 120 / 144 Hz screen most rAF callbacks find
+  // nothing due and return; the due time advances by whole frames, so the average stays at 60 fps
+  // (a plain "elapsed ≥ cap" test would drop to ~45 fps there). More than a frame behind: resync.
+  let nextDue = 0;
   function tick(now) {
     if (!running) return;
     rafId = requestAnimationFrame(tick);
+    if (now < nextDue - 1.5) return; // tolerance for rAF timestamp jitter on 60 Hz screens
+    nextDue = now - nextDue > FRAME_MS ? now + FRAME_MS : nextDue + FRAME_MS;
     const elapsed = now - lastFrame;
-    if (elapsed < MIN_FRAME_MS) return;
     lastFrame = now;
     try {
       frame(Math.min(elapsed / 1000, 0.1)); // clamp: a long stall never jumps the motion
@@ -1404,7 +1880,8 @@ function createHeroGraph(container, animateInitially, cleanups) {
     const want = shouldRun();
     if (want && !running) {
       running = true;
-      lastFrame = performance.now() - MIN_FRAME_MS; // draw on the very next frame
+      lastFrame = performance.now() - FRAME_MS;
+      nextDue = 0; // draw on the very next frame
       rafId = requestAnimationFrame(tick);
     } else if (!want && running) {
       running = false;
@@ -1422,6 +1899,7 @@ function createHeroGraph(container, animateInitially, cleanups) {
       updatePositions(0);
       for (const a of agents) placeAgent(a);
       draw();
+      if (debug) recordAgents();
     } catch (err) {
       state.broken = true;
       console.warn("[herograph] could not draw the still frame.", err);
@@ -1438,6 +1916,7 @@ function createHeroGraph(container, animateInitially, cleanups) {
   }
 
   function onReveal() {
+    pointer.dirty = true; // the build may have moved the hero
     const shown = isShown();
     if (shown === state.shown) return;
     state.shown = shown;
@@ -1466,7 +1945,10 @@ function createHeroGraph(container, animateInitially, cleanups) {
     if (state.disposed) return;
     const w = container.clientWidth;
     const h = container.clientHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+    // the backing store follows the screen (phones included, so labels and hairlines stay crisp);
+    // only a canvas that would get very large at 3× drops to 2×
+    let dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    if (dpr > 2 && w * h * dpr * dpr > MAX_BACKING) dpr = 2;
     const dprChanged = dpr !== state.dpr;
     state.w = w;
     state.h = h;
@@ -1490,23 +1972,60 @@ function createHeroGraph(container, animateInitially, cleanups) {
     syncLoop();
   }
 
+  // The container, the panel, the window and DPR changes all report separately: one layout per
+  // frame, from a single rAF batch.
   let resizeQueued = false;
-  const ro = new ResizeObserver(() => {
-    // the panel and the container report separately: lay out once per frame
-    if (resizeQueued) return;
+  let resizeRaf = 0;
+  function queueResize() {
+    pointer.dirty = true;
+    if (resizeQueued || state.disposed) return;
     resizeQueued = true;
-    requestAnimationFrame(() => {
+    resizeRaf = requestAnimationFrame(() => {
       resizeQueued = false;
       resize();
     });
-  });
+  }
+  cleanups.push(() => cancelAnimationFrame(resizeRaf));
+  const ro = new ResizeObserver(queueResize);
   ro.observe(container);
   if (panel) ro.observe(panel);
   cleanups.push(() => ro.disconnect());
 
-  const onWindowResize = () => resize(); // DPR changes (zoom, moving between screens)
-  window.addEventListener("resize", onWindowResize, { passive: true });
-  cleanups.push(() => window.removeEventListener("resize", onWindowResize));
+  window.addEventListener("resize", queueResize, { passive: true });
+  cleanups.push(() => window.removeEventListener("resize", queueResize));
+
+  // DPR changes (browser zoom, moving the window to another screen): a resolution query for the
+  // current ratio fires once when it stops matching; it is then re-armed for the new ratio.
+  let dprQuery = null;
+  const unwatchDpr = () => {
+    if (!dprQuery) return;
+    if (dprQuery.removeEventListener) dprQuery.removeEventListener("change", onDprChange);
+    else if (dprQuery.removeListener) dprQuery.removeListener(onDprChange);
+    dprQuery = null;
+  };
+  function watchDpr() {
+    unwatchDpr();
+    if (state.disposed || !window.matchMedia) return;
+    try {
+      dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+      if (dprQuery.addEventListener) dprQuery.addEventListener("change", onDprChange);
+      else if (dprQuery.addListener) dprQuery.addListener(onDprChange);
+    } catch {
+      dprQuery = null;
+    }
+  }
+  function onDprChange() {
+    watchDpr();
+    queueResize();
+  }
+  watchDpr();
+  cleanups.push(unwatchDpr);
+
+  const onScroll = () => {
+    pointer.dirty = true;
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  cleanups.push(() => window.removeEventListener("scroll", onScroll));
 
   // Labels are drawn into sprites: redraw them once the mono face has loaded.
   if (document.fonts && document.fonts.load) {
@@ -1526,6 +2045,7 @@ function createHeroGraph(container, animateInitially, cleanups) {
   const io = new IntersectionObserver(
     (entries) => {
       state.inView = entries[entries.length - 1].isIntersecting;
+      pointer.dirty = true;
       syncLoop();
     },
     { rootMargin: "80px 0px" }
@@ -1593,6 +2113,20 @@ function createHeroGraph(container, animateInitially, cleanups) {
 
 /* ── helpers ─────────────────────────────────────────────────────────────────────────────────── */
 
+/** Test counters are exposed only on request: localStorage ktr0a:debug = "1" or ?debug in the URL. */
+function debugOn() {
+  try {
+    if (localStorage.getItem("ktr0a:debug") === "1") return true;
+  } catch {
+    /* storage blocked */
+  }
+  try {
+    return new URLSearchParams(location.search).has("debug");
+  } catch {
+    return false;
+  }
+}
+
 function runCleanups(list) {
   for (let k = list.length - 1; k >= 0; k--) {
     try {
@@ -1614,6 +2148,20 @@ function travelProfile(u, a) {
   return vmax * (a / 2 + (u - a));
 }
 
+/** The inverse of travelProfile: the time u (0…1) at which position f is reached (bisection). */
+function invProfile(f, a) {
+  if (f <= 0) return 0;
+  if (f >= 1) return 1;
+  let lo = 0;
+  let hi = 1;
+  for (let k = 0; k < 22; k++) {
+    const m = (lo + hi) / 2;
+    if (travelProfile(m, a) < f) lo = m;
+    else hi = m;
+  }
+  return (lo + hi) / 2;
+}
+
 function easeOut(u) {
   if (u <= 0) return 0;
   if (u >= 1) return 1;
@@ -1625,6 +2173,36 @@ function easeInOut(u) {
   if (u <= 0) return 0;
   if (u >= 1) return 1;
   return u * u * (3 - 2 * u);
+}
+
+// The arrow of an agent parked on a node, relative to the node (its tip 1.5 px down and right of
+// it, as drawn), so the name of a note just filed stays out from under the carrier that filed it.
+const PARKED_ARROW = ARROW.map(([x, y]) => [1.5 + x * AGENT_SCALE, 1.5 + y * AGENT_SCALE]);
+const PARKED_X1 = Math.max(...PARKED_ARROW.map((p) => p[0]));
+const PARKED_Y1 = Math.max(...PARKED_ARROW.map((p) => p[1]));
+
+/** Does a box (px, relative to the node) come within 1.5 px (rim and shadow) of the parked arrow? */
+function underArrow(x0, y0, x1, y1) {
+  const xa = Math.max(x0 - 1.5, 1.5);
+  const xb = Math.min(x1 + 1.5, PARKED_X1);
+  const ya = Math.max(y0 - 1.5, 1.5);
+  const yb = Math.min(y1 + 1.5, PARKED_Y1);
+  for (let y = ya; y <= yb; y += 1) {
+    for (let x = xa; x <= xb; x += 1) if (inPolygon(PARKED_ARROW, x, y)) return true;
+  }
+  return false;
+}
+
+function inPolygon(P, x, y) {
+  let inside = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const xi = P[i][0];
+    const yi = P[i][1];
+    const xj = P[j][0];
+    const yj = P[j][1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 function mulberry32(seed) {
