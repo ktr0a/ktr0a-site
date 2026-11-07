@@ -5,7 +5,7 @@
    where it carries data (dates, ranks, numbers, versions). Content sits on
    the page itself: rows and hairlines, no cards. Liquid glass is reserved for
    floating chrome over moving content: the nav bar, the build HUD, the
-   settings popover and the hero facts readout over the 3D sculpture.
+   settings popover and the hero facts readout over the live map.
 
    Build-effect styles (overlay, HUD layout, caret, hidden layers…) live in
    css/build.css. This file only describes what the page looks like once
@@ -554,7 +554,7 @@ body::before {
   transition: opacity .8s ease;
 }
 
-/* Copy left; sculpture right with the facts readout floating over its lower-left
+/* Copy left; the map right with the facts readout floating over its lower-left
    corner (both share one grid cell). */
 .hero-grid {
   display: grid;
@@ -602,8 +602,8 @@ body::before {
   gap: 12px;
 }
 
-/* Square stage for the three.js sculpture; the blurred blob is the ambient
-   glow behind the canvas and the whole visual when WebGL is unavailable. */
+/* Square stage for the vault map (js/herograph.js, Canvas 2D). The map fits itself
+   around the facts panel; without JS the stage simply stays empty. */
 .hero-visual {
   position: relative;
   grid-area: 1 / 2;
@@ -612,39 +612,20 @@ body::before {
   max-width: 540px;
   aspect-ratio: 1;
 }
-.hero3d {
+.hero-graph {
   position: absolute;
   inset: 0;
 }
-.hero3d > canvas {
+.hero-graph > canvas {
   position: absolute;
   inset: 0;
   display: block;
-  width: 100% !important;
-  height: 100% !important;
-  touch-action: pan-y;
-}
-.hero3d-fallback {
-  position: absolute;
-  inset: 16%;
-  border-radius: 50%;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  background:
-    radial-gradient(closest-side at 40% 42%, rgba(61, 123, 255, .9), rgba(61, 123, 255, 0) 72%),
-    radial-gradient(closest-side at 63% 62%, rgba(255, 176, 32, .75), rgba(255, 176, 32, 0) 70%);
-  filter: blur(44px);
-  opacity: .5;
-  transition: opacity .9s ease;
-  animation: blob-breathe 10s ease-in-out infinite;
-}
-/* Once hero3d.js has drawn its first frame the blob steps back to a soft halo. */
-.hero3d.is-ready .hero3d-fallback { opacity: .3; }
-@keyframes blob-breathe {
-  0%, 100% { transform: scale(1) rotate(0deg); }
-  50%      { transform: scale(1.08) rotate(14deg); }
 }
 
-/* Facts readout: a small glass panel over the sculpture. Rows stay block-level
+/* Facts readout: a small glass panel over the map. Rows stay block-level
    (they are typed layers): the value is pinned right. */
 .hero-now {
   position: relative;
@@ -1306,7 +1287,6 @@ html.build-pending body:not(:has(.is-built))::before { opacity: 0; }
 /* Decorative CSS loops stop when the visitor turns animations off
    (main.js toggles html.anim-off). */
 .anim-off .dot-green::after,
-.anim-off .hero3d-fallback,
 .anim-off .repo-loading::after { animation: none; }
 
 /* ─────────────────────────────────────────────── RESPONSIVE ── */

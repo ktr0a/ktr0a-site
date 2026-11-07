@@ -21,8 +21,8 @@
 export const PALETTE = ["#4cc9f0", "#f72585", "#ffd60a", "#9d6bff", "#2ee59d", "#ff8c42"];
 export const QA_RED = "#ff3b3b";
 
-// Classic pointer arrow, tip at (0,0), ~15 px tall.
-const ARROW = [
+// Classic pointer arrow, tip at (0,0), ~15 px tall. Also used by the hero map's agents (js/herograph.js).
+export const ARROW = [
   [0, 0],
   [0, 15.5],
   [3.9, 11.9],

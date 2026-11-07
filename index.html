@@ -48,8 +48,6 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
         "lenis": "https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.mjs"
       }
     }
@@ -63,7 +61,7 @@
   <link rel="modulepreload" href="js/build/overlay.js" />
   <link rel="modulepreload" href="js/build/typer.js" />
   <link rel="modulepreload" href="js/build/hud.js" />
-  <link rel="modulepreload" href="js/hero3d.js" />
+  <link rel="modulepreload" href="js/herograph.js" />
   <link rel="modulepreload" href="js/settings.js" />
   <link rel="modulepreload" href="js/cursor.js" />
   <!-- If the entry module (or a static import of it) fails to load, reveal the page at once
@@ -150,11 +148,12 @@
           </div>
         </div>
 
+        <!-- Live map of the study system (js/herograph.js draws it; empty without JS). -->
         <div class="hero-visual" data-layer="media" aria-hidden="true">
-          <div class="hero3d" id="hero3d"><div class="hero3d-fallback"></div></div>
+          <div class="hero-graph" id="hero-graph"></div>
         </div>
 
-        <!-- Facts readout: floats over the sculpture (glass over moving content). -->
+        <!-- Facts readout: floats over the map's lower-left corner (glass over moving content). -->
         <aside class="hero-now glass" data-layer="box" aria-label="Facts">
           <p class="now-where" data-layer="text" data-qa><span class="dot dot-green" aria-hidden="true"></span>CS student · ETH Zürich <span class="now-sep">/</span> Vienna → Zürich</p>
           <dl class="now-list">
@@ -290,7 +289,7 @@
           <a class="mini-row" href="https://qluo.dev" data-layer="box">
             <h3 class="mini-title" data-layer="text" data-clone="mini">qluo.dev</h3>
             <span class="mini-kind" data-layer="text">This site · Vanilla JS</span>
-            <p class="mini-desc" data-layer="text">Rebuilt live by a swarm of agents on every visit: canvas overlay, DOM typing engine, procedural WebAudio sound and a three.js hero.</p>
+            <p class="mini-desc" data-layer="text">Rebuilt live by a swarm of agents on every visit: canvas overlay, DOM typing engine, procedural WebAudio sound and a live canvas map in the hero.</p>
             <span class="mini-link" data-layer="text">You are here</span>
           </a>
           <a class="mini-row" href="https://github.com/ktr0a/TeachFlow-DevFest-AI-Hackathon-2025-" target="_blank" rel="noopener noreferrer" data-layer="box">

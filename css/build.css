@@ -134,7 +134,7 @@ html.build-smear main :is(h1, h2, h3, .stat-value, .record-rank) {
   text-shadow: 0 8px 0 rgba(61, 123, 255, 0.36), 0 15px 0 rgba(255, 59, 59, 0.2);
 }
 html.build-smear main :is(p, li, .chip, .mono-label) { text-shadow: 0 5px 0 rgba(61, 123, 255, 0.26); }
-html.build-smear main :is(.project-visual img, .hero3d) {
+html.build-smear main :is(.project-visual img, .hero-graph) {
   filter: drop-shadow(0 8px 0 rgba(61, 123, 255, 0.32)) drop-shadow(0 -6px 0 rgba(255, 59, 59, 0.22));
 }
 

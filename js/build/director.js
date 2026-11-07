@@ -1191,7 +1191,7 @@ export function createDirector({ root = document, scroller, sfx, speed, onState 
 
   /**
    * The opening beat: the camera stays on the first screen until every layer of the opening
-   * section that is visible there (hero copy, 3D object, stats clone-edit) is built, then
+   * section that is visible there (hero copy, hero map, stats clone-edit) is built, then
    * dwells HERO_DWELL so the finished hero is actually seen before anything scrolls.
    */
   function heroHold() {

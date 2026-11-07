@@ -23,7 +23,7 @@ from a small Vercel function.
 | `js/data.js` | Email, GitHub repos, YouTube stats |
 | `js/build/` | The build engine: `director` (planning and timeline), `agents`, `overlay` (canvas drawing), `typer`, `hud` |
 | `js/sfx.js` | Procedural WebAudio sound effects and the ambient bed |
-| `js/hero3d.js` | three.js hero object (bloom, environment lighting), with a CSS fallback |
+| `js/herograph.js` | Hero "vault map" (Canvas 2D): the study system as a live graph that agent cursors keep filing notes into |
 | `assets/` | Favicon, OG image, project screenshots (`assets/shots/`) |
 | `api/youtube.js` | Vercel function: channel statistics (needs `YT_API_KEY`) |
 

@@ -5,11 +5,11 @@
      sfx · email · GitHub/YouTube data · nav · in-page anchors · Lenis smooth
      scroll (fine pointers) · toggles (animations / sound / rebuild) · build
      settings (gear popover, ./settings.js) · UI sfx · agent cursor (native CSS
-     cursor + trailing "you" tag, ./cursor.js) · hero 3D · the build director.
+     cursor + trailing "you" tag, ./cursor.js) · hero map · the build director.
 
    Each step runs inside guard(): one failing feature logs a warning and never
-   blocks the others. The sound engine and the build engine (and third-party code:
-   Lenis, three.js via hero3d.js) are loaded with dynamic import(), so a failed
+   blocks the others. The sound engine, the build engine, the hero map and
+   third-party code (Lenis) are loaded with dynamic import(), so a failed
    fetch anywhere in their module graphs degrades to "no sound" / "no build"
    instead of taking this module (email, data, nav) down with it. Content wiring
    runs first and never waits for them.
@@ -46,9 +46,9 @@ const SPEEDS = [1, 2, 4];
 const DEFAULT_RUN = Object.freeze({ speed: 1, tour: true }); // first visit, Rebuild, Replay, R
 const NAV_GAP = 8; // breathing room between the fixed nav and an anchor target
 const FINE_POINTER = window.matchMedia("(hover: hover) and (pointer: fine)");
-// Longest the build waits, on its black pre-boot screen, for the 3D object and the project
-// visuals to finish their expensive first-time GPU setup (so the boot orbit and the tour
-// never stutter on it). A slow CDN just means the wait times out and the build starts anyway.
+// Longest the build waits, on its black pre-boot screen, for the hero map to mount and the
+// project visuals to finish their expensive first paint (so the boot orbit and the tour
+// never stutter on it). A slow network just means the wait times out and the build starts anyway.
 const PREBOOT_WAIT_MS = 700;
 
 /* ─────────────────────────────── utilities ─────────────────────────────── */
@@ -103,7 +103,7 @@ const state = {
   autoPending: false, // the automatic build was started but has not booted (or been skipped) yet
   settings: null, // build settings popover (./settings.js)
   director: null, // build engine instance (created only when a build runs)
-  hero: null, // { setAnimate, dispose } from hero3d.js
+  hero: null, // { setAnimate, dispose } from herograph.js
   lenis: null, // Lenis instance while smooth scrolling is active
 };
 
@@ -571,7 +571,7 @@ function syncSoundToggle() {
 
 /**
  * Live animation switch. Off: fast-forward any running build (or late-cards mini-build),
- * freeze the 3D object, drop Lenis smoothing. On: resume them (no
+ * freeze the hero map, drop Lenis smoothing. On: resume them (no
  * automatic rebuild). persist:false changes this visit only (a replay from the HUD).
  */
 function setAnimations(on, { persist = true } = {}) {
@@ -579,7 +579,7 @@ function setAnimations(on, { persist = true } = {}) {
   if (persist) store.set(ANIM_KEY, on ? "on" : "off");
   root.classList.toggle("anim-off", !on); // styling hook for CSS transitions
   syncAnimToggle();
-  guard("hero3d setAnimate", () => state.hero?.setAnimate(on));
+  guard("hero map setAnimate", () => state.hero?.setAnimate(on));
   if (on) {
     guard("lenis", enableLenis);
     return;
@@ -655,19 +655,19 @@ function initUiSfx() {
   });
 }
 
-/* ─────────────────────────────── hero 3D ─────────────────────────────── */
+/* ─────────────────────────────── hero map ─────────────────────────────── */
 
 async function mountHero() {
-  const container = document.getElementById("hero3d");
+  const container = document.getElementById("hero-graph");
   if (!container) return;
   try {
-    const { mountHero3D } = await import("./hero3d.js");
-    const hero = await mountHero3D(container, { animate: state.animOn });
+    const { mountHeroGraph } = await import("./herograph.js");
+    const hero = await mountHeroGraph(container, { animate: state.animOn });
     if (!hero) return;
     state.hero = hero;
-    hero.setAnimate?.(state.animOn); // the toggle may have flipped while three.js was loading
+    hero.setAnimate?.(state.animOn); // the toggle may have flipped while the module was loading
   } catch (err) {
-    warn("hero 3D", err); // the CSS fallback blob stays visible
+    warn("hero map", err); // the visual area just stays empty
   }
 }
 
@@ -779,7 +779,7 @@ function boot() {
   guard("GitHub repos", () => loadGitHubRepos());
   guard("YouTube stats", () => loadYouTubeStats({ setText: setLayerText }));
 
-  const heroReady = guard("hero 3D", mountHero);
+  const heroReady = guard("hero map", mountHero);
   const building = state.animOn && root.classList.contains("build-pending");
   const visualsReady = building ? guard("visuals warm-up", warmVisuals) : null;
 
@@ -835,7 +835,7 @@ function boot() {
       guard("ui sfx", initUiSfx);
       if (!building) return;
       if (createDirector) guard("preboot logo", showPrebootLogo);
-      // The first visit shows its start screen right away (the 3D object warms up while the
+      // The first visit shows its start screen right away (the hero map loads while the
       // visitor reads it); only the gear must be in the nav before the build plans.
       if (automaticRun().kind !== "return") return settingsReady;
       const settled = Promise.allSettled([heroReady, visualsReady, settingsReady]);
