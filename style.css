@@ -815,6 +815,7 @@ body::before {
   line-height: 1.6;
   color: var(--text-3);
 }
+.channel-link { margin-top: 18px; }
 
 /* Screenshot frame: a dark matte with a thin edge. Any aspect ratio fits (contain);
    set --frame on the element (or use --portrait) to change the frame's own shape. */
