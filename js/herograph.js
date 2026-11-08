@@ -1,7 +1,7 @@
 /**
  * herograph.js: the hero "vault map" (plain Canvas 2D, no libraries).
  *
- * A quiet, blueprint-precise map of Uni OS, the Obsidian vault that a team of agents runs: a central
+ * A quiet, blueprint-precise map of Uni OS, the plain-Markdown vault that a team of agents runs: a central
  * vault hub (crosshair, snapped onto the hero's 56 px grid), the four first-semester courses on an
  * orbit ring around it (each with a status pip and a fan of note leaves) and a small inbox near the
  * upper-right edge where notes come in. A few of the build's agent cursors keep working after the

@@ -23,7 +23,7 @@ from a small Vercel function.
 | `js/data.js` | Email, GitHub repos, YouTube stats |
 | `js/build/` | The build engine: `director` (planning and timeline), `agents`, `overlay` (canvas drawing), `typer`, `hud` |
 | `js/sfx.js` | Procedural WebAudio sound effects and the ambient bed |
-| `js/herograph.js` | Hero "vault map" (Canvas 2D): the study system as an animated graph that agent cursors keep filing notes into |
+| `js/herograph.js` | Hero "vault map" (Canvas 2D): [Uni OS](https://github.com/ktr0a/uni-os) as an animated graph that agent cursors keep filing notes into |
 | `assets/` | Favicon, OG image, project screenshots (`assets/shots/`) |
 | `api/youtube.js` | Vercel function: channel statistics (needs `YT_API_KEY`) |
 

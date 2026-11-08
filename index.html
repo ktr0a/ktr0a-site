@@ -17,14 +17,14 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Qiang Luo (ktr0a): systems, agents &amp; software</title>
-  <meta name="description" content="Qiang Luo (ktr0a): Computer Science student at ETH Zürich. I build the tools I need and couldn't find: a multi-agent study system, an Obsidian cockpit and a handwriting app. Previously grew Applino, a 160k+ subscriber YouTube channel." />
+  <meta name="description" content="Qiang Luo (ktr0a): Computer Science student at ETH Zürich. I build the tools I need and couldn't find, like Uni OS, an open-source multi-agent study system with an Obsidian cockpit, and a handwriting app. Previously grew Applino, a 160k+ subscriber YouTube channel." />
   <meta name="theme-color" content="#08080a" />
   <link rel="canonical" href="https://qluo.dev/" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://qluo.dev/" />
   <meta property="og:title" content="Qiang Luo (ktr0a)" />
   <meta property="og:description" content="CS student at ETH Zürich. Multi-agent systems, study tools and Android apps. This site rebuilds itself live, by agents, on every visit." />
-  <meta property="og:image" content="https://qluo.dev/assets/og.png?v=2" />
+  <meta property="og:image" content="https://qluo.dev/assets/og.png?v=3" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="qluo.dev: I build systems that run themselves." />
@@ -141,14 +141,14 @@
             <span class="display-l1">I build systems</span>
             <span class="display-l2">that run themselves.</span>
           </h1>
-          <p class="lead" data-layer="text">I’m Qiang Luo, known online as ktr0a. I study Computer Science at ETH Zürich and build the tools I need when they don’t exist yet: a multi-agent study system that lives in Obsidian, and a handwriting app for my tablet. I also grew Applino, a YouTube channel, to 160k+ subscribers.</p>
+          <p class="lead" data-layer="text">I’m Qiang Luo, known online as ktr0a. I study Computer Science at ETH Zürich and build the tools I need when they don’t exist yet: Uni OS, an open-source multi-agent study system, and a handwriting app for my tablet. I also grew Applino, a YouTube channel, to 160k+ subscribers.</p>
           <div class="hero-ctas">
             <a href="#work" class="btn btn-light" data-layer="button">See the work</a>
             <a href="#contact" class="btn btn-ghost" data-layer="button">Start a conversation</a>
           </div>
         </div>
 
-        <!-- Live map of the study system (js/herograph.js draws it; empty without JS). -->
+        <!-- Live map of Uni OS (js/herograph.js draws it; empty without JS). -->
         <div class="hero-visual" data-layer="media" aria-hidden="true">
           <div class="hero-graph" id="hero-graph"></div>
         </div>
@@ -188,7 +188,7 @@
           <article class="focus-item" data-layer="box">
             <hr class="focus-rule" data-layer="rule" />
             <h3 class="focus-title" data-layer="text" data-clone="focus">Agent systems</h3>
-            <p class="focus-text" data-layer="text">Multi-session agent setups with a coordinator, role agents, handovers, schedules and guardrails. They run around the clock on a cloud VM I manage myself.</p>
+            <p class="focus-text" data-layer="text">Multi-session agent setups with a coordinator, role agents, handovers, schedules and guardrails. Mine run around the clock on an always-on Linux host I set up and maintain myself.</p>
           </article>
           <article class="focus-item" data-layer="box">
             <hr class="focus-rule" data-layer="rule" />
@@ -222,32 +222,35 @@
           <div class="project-copy">
             <div class="project-meta">
               <p class="project-tag" data-layer="text" data-qa>Multi-agent study system</p>
-              <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Live</span>
+              <span class="status status-live" data-layer="chip"><span class="dot dot-green" aria-hidden="true"></span>Open source</span>
             </div>
             <h3 class="project-title" data-layer="heading">Uni OS</h3>
-            <p class="project-desc" data-layer="text">The operating system of my first ETH semester. An Obsidian vault of about 690 notes, run by a team of Claude Code sessions: a coordinator plus role agents for planning, tracking and per-course exercise help. They hand work to each other through notes, a single sync job applies every change, an hourly git history records it, and strict academic-integrity rules mean hints only.</p>
+            <p class="project-desc" data-layer="text">A study system you build with your AI agent. You clone it and say “set me up”: the agent interviews you, then builds your vault of plain Markdown from 25 modules, plus the jobs and agent roles that keep it current. It grew out of the system I ran my first ETH semester on, which I rebuilt several times in two months, each time because of one concrete limit.</p>
             <ul class="project-parts">
-              <li data-layer="text" data-clone="parts"><b>uni-vm</b> · 24/7 Google Cloud VM: six self-resuming agent sessions, ~15 scheduled jobs, budgeted phone pushes</li>
-              <li data-layer="text" data-clone="parts"><b>Quick View</b> · phone page with today, week and courses, live from Calendar and Drive in ~1.1 s</li>
-              <li data-layer="text" data-clone="parts"><b>System dashboard</b> · a live SVG map of every part of the system and its health</li>
+              <li data-layer="text" data-clone="parts"><b>uni-os CLI</b> · standard-library Python: reproducible renders that keep your own edits, and a doctor with a secrets scan</li>
+              <li data-layer="text" data-clone="parts"><b>Heartbeat</b> · a plain-code check runs first, an agent starts only if a rule fires, and pushes share a budget of 3 a day</li>
+              <li data-layer="text" data-clone="parts"><b>Integrity</b> · an assistance level per course and graded task, hints only by default</li>
+              <li data-layer="text" data-clone="parts"><b>uni-vm</b> · optional always-on Linux host: job timers, role sessions that resume after crashes, an hourly git history of every note</li>
             </ul>
             <ul class="chips" aria-label="Tech">
-              <li class="chip" data-layer="chip">Claude Code</li>
-              <li class="chip" data-layer="chip">Google Cloud</li>
+              <li class="chip" data-layer="chip">Python</li>
+              <li class="chip" data-layer="chip">TypeScript</li>
               <li class="chip" data-layer="chip">Obsidian</li>
+              <li class="chip" data-layer="chip">Claude Code</li>
             </ul>
-            <p class="project-note" data-layer="text">Not public yet. I plan to release the structure as a set of Markdown files you can hand to any DIY agent setup to build your own.</p>
+            <p class="project-note" data-layer="text">Version 0.1.0 (7 Nov 2026), MIT license. So far tested only with Claude Code, on Windows.</p>
+            <a class="link-arrow project-link" href="https://github.com/ktr0a/uni-os" target="_blank" rel="noopener noreferrer" data-layer="text">View on GitHub <span aria-hidden="true">↗</span></a>
           </div>
           <div class="project-visual" style="--frame: 1600 / 1102" data-layer="media">
-            <img src="assets/shots/uni-os-map.webp" width="1600" height="1102" alt="The Uni OS system dashboard: a map of every part of the system around the Google Drive vault, with laptop parts, VM jobs, agent roles and cloud sessions, each with a live status dot" loading="eager" decoding="async" />
+            <img src="assets/shots/uni-os-map.webp" width="1600" height="1102" alt="The system dashboard of my own Uni OS setup: a map of every part around the Google Drive vault, with laptop parts, VM jobs, agent roles and cloud sessions, each with a live status dot" loading="eager" decoding="async" />
           </div>
 
-          <!-- Uni Cockpit: part of Uni OS (brings it into Obsidian) -->
+          <!-- Uni OS Cockpit: the Obsidian plugin module of Uni OS -->
           <div class="project-sub" id="uni-cockpit" data-layer="box">
             <div class="project-sub-copy">
               <p class="project-tag" data-layer="text">Part of Uni OS · Obsidian plugin · TypeScript</p>
-              <h4 class="project-sub-title" data-layer="heading">Uni Cockpit</h4>
-              <p class="project-desc" data-layer="text">Brings Uni OS into Obsidian, so the whole system runs where my notes already are. The plugin reads the vault live and turns it into a study dashboard with Focus, Dashboard and Agenda layouts and its own iCal parser (recurring, moved and cancelled events, time zones). An optional Claude side panel picks Haiku or Sonnet per question and shows tokens and cost for every answer.</p>
+              <h4 class="project-sub-title" data-layer="heading">Uni OS Cockpit</h4>
+              <p class="project-desc" data-layer="text">The Obsidian side of Uni OS. It reads the notes the agents keep, plus your calendar feeds, and turns them into a live study dashboard: Focus, Dashboard and Agenda layouts, a week grid, bonus bars per course and its own iCal parser (recurring, moved and cancelled events, time zones). An optional Claude side panel on your own API key picks Haiku or Sonnet per question and shows tokens and cost for every answer.</p>
               <ul class="chips" aria-label="Tech">
                 <li class="chip" data-layer="chip">TypeScript</li>
                 <li class="chip" data-layer="chip">esbuild</li>
@@ -257,7 +260,7 @@
               </ul>
             </div>
             <div class="project-visual project-visual--sub" data-layer="media">
-              <img src="assets/shots/uni-cockpit-focus.webp" width="1600" height="1200" alt="Uni Cockpit's Focus layout in Obsidian: the current study block, upcoming deadlines with countdowns, a day strip with a now line and today's prep notes" loading="eager" decoding="async" />
+              <img src="assets/shots/uni-cockpit-focus.webp" width="1600" height="1200" alt="The cockpit's Focus layout in Obsidian: the current study block, upcoming deadlines with countdowns, a day strip with a now line and today's prep notes" loading="eager" decoding="async" />
             </div>
           </div>
         </article>
@@ -289,7 +292,7 @@
           <a class="mini-row" href="https://qluo.dev" data-layer="box">
             <h3 class="mini-title" data-layer="text" data-clone="mini">qluo.dev</h3>
             <span class="mini-kind" data-layer="text">This site · Vanilla JS</span>
-            <p class="mini-desc" data-layer="text">Rebuilt live by a swarm of agents on every visit: canvas overlay, DOM typing engine, procedural WebAudio sound and an animated map of my study system in the hero.</p>
+            <p class="mini-desc" data-layer="text">Rebuilt live by a swarm of agents on every visit: canvas overlay, DOM typing engine, procedural WebAudio sound and an animated map of Uni OS in the hero.</p>
             <span class="mini-link" data-layer="text">You are here</span>
           </a>
           <a class="mini-row" href="https://github.com/ktr0a/TeachFlow-DevFest-AI-Hackathon-2025-" target="_blank" rel="noopener noreferrer" data-layer="box">
@@ -353,7 +356,7 @@
             <span class="display-l1">Precision</span>
             <span class="display-l2">over guessing.</span>
           </h2>
-          <p class="section-intro" data-layer="text">I learn by building. When I started at ETH I built myself a study system instead of a to-do list. I like calm interfaces, honest status lights and tools that hold up in daily use.</p>
+          <p class="section-intro" data-layer="text">I learn by building. When I started at ETH I built myself a study system instead of a to-do list; it is open source now, as Uni OS. I like calm interfaces, honest status lights and tools that hold up in daily use.</p>
           <p class="section-intro" data-layer="text">Before Zürich: civilian service in Vienna, a Matura at BG/BRG Schwechat (I skipped 6th grade along the way), and teaching kids and teens 3D printing, laser cutting and microcontrollers at FabLab Niederösterreich.</p>
         </div>
 
@@ -526,7 +529,7 @@
           <h3 class="footer-h" data-layer="text" data-clone="fhead">Work</h3>
           <ul>
             <li><a href="#work" data-layer="text" data-clone="fwork">Uni OS</a></li>
-            <li><a href="#uni-cockpit" data-layer="text" data-clone="fwork">Uni Cockpit</a></li>
+            <li><a href="#uni-cockpit" data-layer="text" data-clone="fwork">Uni OS Cockpit</a></li>
             <li><a href="#work" data-layer="text" data-clone="fwork">Quiet Notes</a></li>
             <li><a href="#applino" data-layer="text" data-clone="fwork">Applino</a></li>
           </ul>

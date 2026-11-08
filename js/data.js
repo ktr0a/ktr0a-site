@@ -28,7 +28,7 @@ const FETCH_TIMEOUT = 8000;
 /** Never listed in the repo grid: the site itself, the profile README repo, and
  *  repos already featured as cards above the grid. Compared case-insensitively. */
 const EXCLUDED_REPOS = new Set(
-  ["ktr0a-site", "ktr0a", "TeachFlow-DevFest-AI-Hackathon-2025-"].map((n) => n.toLowerCase())
+  ["ktr0a-site", "ktr0a", "TeachFlow-DevFest-AI-Hackathon-2025-", "uni-os"].map((n) => n.toLowerCase())
 );
 const MAX_REPOS = 5; // + the profile card = two full rows at most
 /** Scratch repos that read as filler next to the curated projects. */

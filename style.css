@@ -796,7 +796,8 @@ body::before {
   line-height: 1.6;
   color: var(--text-3);
 }
-.channel-link { margin-top: 18px; }
+.channel-link,
+.project-link { margin-top: 18px; }
 
 /* Screenshot frame: a dark matte with a thin edge. Any aspect ratio fits (contain);
    set --frame on the element (or use --portrait) to change the frame's own shape. */
@@ -825,7 +826,7 @@ body::before {
   width: min(100%, 460px);
 }
 
-/* Uni Cockpit: a subsection of the Uni OS article. Same columns, indented under an
+/* Uni OS Cockpit: a subsection of the Uni OS article. Same columns, indented under an
    indented hairline, so it reads as part of the project above (not a card in a card). */
 .project-sub {
   grid-column: 1 / -1;
